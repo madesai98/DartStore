@@ -51,7 +51,7 @@ function fieldTypeBadge(field: FirestoreField): string {
     let label: string = field.type;
     if (field.type === 'array' && field.arrayItemType) label = `array<${field.arrayItemType}>`;
     if (field.type === 'map' && field.mapValueType) label = `map<${field.mapValueType}>`;
-    if (field.type === 'reference' && field.referenceCollection) label = `ref → ${field.referenceCollection}`;
+    if (field.type === 'reference' && field.referenceCollections && field.referenceCollections.length > 0) label = `ref → ${field.referenceCollections.join(', ')}`;
     return label;
 }
 

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
     Plus, Trash2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight,
-    Shield, ShieldCheck, ShieldX, GitBranch, Copy, Eye, EyeOff,
+    Shield, ShieldX, GitBranch, Copy, Eye, EyeOff,
 } from 'lucide-react';
 import type {
     FirestoreCollection,
@@ -41,11 +41,6 @@ function flattenCollections(collections: FirestoreCollection[]): FirestoreCollec
     return result;
 }
 
-function countEnabledRules(rules: CollectionSecurityRules | undefined): number {
-    if (!rules || !rules.enabled) return 0;
-    return rules.rules.filter(r => r.enabled).length;
-}
-
 function countTotalConditions(group: SecurityConditionGroup): number {
     return group.conditions.length + group.groups.reduce((sum, g) => sum + countTotalConditions(g), 0);
 }
@@ -57,10 +52,10 @@ interface SecurityRulesBuilderProps {
     securityRules: ProjectSecurityRules;
     onChange: (rules: ProjectSecurityRules) => void;
     onShowPreview: () => void;
+    selectedCollectionId: string | null;
 }
 
-export default function SecurityRulesBuilder({ project, securityRules, onChange, onShowPreview }: SecurityRulesBuilderProps) {
-    const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+export default function SecurityRulesBuilder({ project, securityRules, onChange, onShowPreview, selectedCollectionId }: SecurityRulesBuilderProps) {
     const allCollections = flattenCollections(project.collections);
 
     const handleToggleEnabled = () => {
@@ -173,67 +168,20 @@ export default function SecurityRulesBuilder({ project, securityRules, onChange,
                                 Add collections to your project first, then configure security rules
                             </p>
                         </div>
+                    ) : selectedCollection && selectedRules ? (
+                        <CollectionRuleEditor
+                            collection={selectedCollection}
+                            rules={selectedRules}
+                            onChange={(rules) => updateCollectionRules(selectedCollection.id, rules)}
+                        />
                     ) : (
-                        <div className="flex gap-6">
-                            {/* Collection Sidebar */}
-                            <div className="w-56 flex-shrink-0 space-y-1">
-                                <h3 className="text-[11px] font-semibold text-white/30 uppercase tracking-widest mb-3">
-                                    Collections
-                                </h3>
-                                {allCollections.map((collection) => {
-                                    const rules = getCollectionRules(collection.id);
-                                    const ruleCount = countEnabledRules(rules);
-                                    const isSelected = selectedCollectionId === collection.id;
-                                    const hasRules = rules.enabled && ruleCount > 0;
-
-                                    return (
-                                        <button
-                                            key={collection.id}
-                                            onClick={() => setSelectedCollectionId(collection.id)}
-                                            className={`w-full text-left rounded-xl px-3.5 py-2.5 transition-all duration-200 group ${isSelected
-                                                ? 'bg-white/[0.08] text-white/90'
-                                                : 'hover:bg-white/[0.04] text-white/50'
-                                                }`}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    {hasRules ? (
-                                                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400/60 flex-shrink-0" />
-                                                    ) : (
-                                                        <ShieldX className="w-3.5 h-3.5 text-white/15 flex-shrink-0" />
-                                                    )}
-                                                    <span className="text-sm font-medium truncate">{collection.name}</span>
-                                                </div>
-                                                {ruleCount > 0 && (
-                                                    <span className="text-xs font-medium bg-amber-500/15 text-amber-300/60 px-1.5 py-0.5 rounded-md flex-shrink-0">
-                                                        {ruleCount}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Rule Editor */}
-                            <div className="flex-1 min-w-0">
-                                {selectedCollection && selectedRules ? (
-                                    <CollectionRuleEditor
-                                        collection={selectedCollection}
-                                        rules={selectedRules}
-                                        onChange={(rules) => updateCollectionRules(selectedCollection.id, rules)}
-                                    />
-                                ) : (
-                                    <div className="flex items-center justify-center h-64">
-                                        <div className="text-center">
-                                            <Shield className="w-10 h-10 mx-auto mb-3 text-white/10" />
-                                            <p className="text-white/30">Select a collection</p>
-                                            <p className="text-sm mt-1 text-white/20">
-                                                Choose a collection to configure its security rules
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
+                        <div className="flex items-center justify-center h-64">
+                            <div className="text-center">
+                                <Shield className="w-10 h-10 mx-auto mb-3 text-white/10" />
+                                <p className="text-white/30">Select a collection</p>
+                                <p className="text-sm mt-1 text-white/20">
+                                    Choose a collection from the sidebar to configure its security rules
+                                </p>
                             </div>
                         </div>
                     )}

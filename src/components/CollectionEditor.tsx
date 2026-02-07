@@ -7,6 +7,7 @@ import ValidationRuleBuilder from './ValidationRuleBuilder';
 
 interface CollectionEditorProps {
     collection: FirestoreCollection;
+    allCollections: FirestoreCollection[];
     onUpdateCollection: (updates: Partial<FirestoreCollection>) => void;
     onAddField: (field: FirestoreField) => void;
     onUpdateField: (fieldId: string, updates: Partial<FirestoreField>) => void;
@@ -25,8 +26,19 @@ const FIELD_TYPES: FirestoreFieldType[] = [
     'null',
 ];
 
+// Validate that reference fields have at least one collection selected
+const validateField = (field: Partial<FirestoreField>): string | null => {
+    if (field.type === 'reference') {
+        if (!field.referenceCollections || field.referenceCollections.length === 0) {
+            return 'Reference fields must have at least one collection selected';
+        }
+    }
+    return null;
+};
+
 export default function CollectionEditor({
     collection,
+    allCollections,
     onUpdateCollection,
     onAddField,
     onUpdateField,
@@ -167,6 +179,7 @@ export default function CollectionEditor({
 
                     {showNewField && (
                         <NewFieldForm
+                            allCollections={allCollections}
                             onAdd={(field) => {
                                 onAddField(field);
                                 setShowNewField(false);
@@ -180,6 +193,7 @@ export default function CollectionEditor({
                             <FieldRow
                                 key={field.id}
                                 field={field}
+                                allCollections={allCollections}
                                 isEditing={editingFieldId === field.id}
                                 onEdit={() => setEditingFieldId(field.id)}
                                 onSave={(updates) => {
@@ -212,11 +226,12 @@ export default function CollectionEditor({
 }
 
 interface NewFieldFormProps {
+    allCollections: FirestoreCollection[];
     onAdd: (field: FirestoreField) => void;
     onCancel: () => void;
 }
 
-function NewFieldForm({ onAdd, onCancel }: NewFieldFormProps) {
+function NewFieldForm({ allCollections, onAdd, onCancel }: NewFieldFormProps) {
     const [name, setName] = useState('');
     const [type, setType] = useState<FirestoreFieldType>('string');
     const [isRequired, setIsRequired] = useState(false);
@@ -225,6 +240,7 @@ function NewFieldForm({ onAdd, onCancel }: NewFieldFormProps) {
     const [mapValueType, setMapValueType] = useState<FirestoreFieldType>('string');
     const [defaultPreset, setDefaultPreset] = useState<DefaultValuePreset>('none');
     const [customDefaultValue, setCustomDefaultValue] = useState('');
+    const [referenceCollections, setReferenceCollections] = useState<string[]>([]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -239,7 +255,13 @@ function NewFieldForm({ onAdd, onCancel }: NewFieldFormProps) {
                 mapValueType: type === 'map' ? mapValueType : undefined,
                 defaultPreset: defaultPreset !== 'none' ? defaultPreset : undefined,
                 defaultValue: customDefaultValue.trim() || undefined,
+                referenceCollections: type === 'reference' && referenceCollections.length > 0 ? referenceCollections : undefined,
             };
+            const validationError = validateField(field);
+            if (validationError) {
+                alert(validationError);
+                return;
+            }
             onAdd(field);
         }
     };
@@ -291,6 +313,35 @@ function NewFieldForm({ onAdd, onCancel }: NewFieldFormProps) {
                             <option key={t} value={t}>{t}</option>
                         ))}
                     </select>
+                </div>
+            )}
+
+            {type === 'reference' && (
+                <div className="mb-3">
+                    <label className="block text-sm font-medium text-white/40 mb-1">Collections</label>
+                    <div className="space-y-2 max-h-48 overflow-y-auto bg-white/[0.02] rounded-lg p-3 border border-white/[0.08]">
+                        {allCollections.length === 0 ? (
+                            <p className="text-sm text-white/30">No collections available</p>
+                        ) : (
+                            allCollections.map((collection) => (
+                                <label key={collection.id} className="flex items-center gap-2 cursor-pointer hover:bg-white/[0.04] p-2 rounded">
+                                    <input
+                                        type="checkbox"
+                                        checked={referenceCollections.includes(collection.id)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setReferenceCollections([...referenceCollections, collection.id]);
+                                            } else {
+                                                setReferenceCollections(referenceCollections.filter(id => id !== collection.id));
+                                            }
+                                        }}
+                                        className="rounded border-0 bg-white/[0.1] text-violet-500 focus:ring-violet-500/30"
+                                    />
+                                    <span className="text-sm text-white/70">{collection.name}</span>
+                                </label>
+                            ))
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -382,6 +433,7 @@ function NewFieldForm({ onAdd, onCancel }: NewFieldFormProps) {
 
 interface FieldRowProps {
     field: FirestoreField;
+    allCollections: FirestoreCollection[];
     isEditing: boolean;
     onEdit: () => void;
     onSave: (updates: Partial<FirestoreField>) => void;
@@ -389,7 +441,7 @@ interface FieldRowProps {
     onDelete: () => void;
 }
 
-function FieldRow({ field, isEditing, onEdit, onSave, onCancel, onDelete }: FieldRowProps) {
+function FieldRow({ field, allCollections, isEditing, onEdit, onSave, onCancel, onDelete }: FieldRowProps) {
     const [editData, setEditData] = useState(field);
 
     if (isEditing) {
@@ -431,6 +483,36 @@ function FieldRow({ field, isEditing, onEdit, onSave, onCancel, onDelete }: Fiel
                         className="w-full px-3 py-2 bg-white/[0.06] border-0 rounded-lg text-white/80 placeholder-white/20 focus:ring-1 focus:ring-violet-500/30 transition-all"
                     />
                 </div>
+
+                {editData.type === 'reference' && (
+                    <div className="mb-3">
+                        <label className="block text-sm font-medium text-white/40 mb-1">Collections</label>
+                        <div className="space-y-2 max-h-48 overflow-y-auto bg-white/[0.02] rounded-lg p-3 border border-white/[0.08]">
+                            {allCollections.length === 0 ? (
+                                <p className="text-sm text-white/30">No collections available</p>
+                            ) : (
+                                allCollections.map((collection) => (
+                                    <label key={collection.id} className="flex items-center gap-2 cursor-pointer hover:bg-white/[0.04] p-2 rounded">
+                                        <input
+                                            type="checkbox"
+                                            checked={(editData.referenceCollections || []).includes(collection.id)}
+                                            onChange={(e) => {
+                                                const current = editData.referenceCollections || [];
+                                                if (e.target.checked) {
+                                                    setEditData({ ...editData, referenceCollections: [...current, collection.id] });
+                                                } else {
+                                                    setEditData({ ...editData, referenceCollections: current.filter(id => id !== collection.id) });
+                                                }
+                                            }}
+                                            className="rounded border-0 bg-white/[0.1] text-violet-500 focus:ring-violet-500/30"
+                                        />
+                                        <span className="text-sm text-white/70">{collection.name}</span>
+                                    </label>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 <div className="mb-3">
                     <label className="block text-sm font-medium text-white/40 mb-1">Default Value</label>
@@ -483,7 +565,14 @@ function FieldRow({ field, isEditing, onEdit, onSave, onCancel, onDelete }: Fiel
                         Cancel
                     </button>
                     <button
-                        onClick={() => onSave(editData)}
+                        onClick={() => {
+                            const validationError = validateField(editData);
+                            if (validationError) {
+                                alert(validationError);
+                                return;
+                            }
+                            onSave(editData);
+                        }}
                         className="px-4 py-2 bg-violet-500/80 text-white rounded-lg hover:bg-violet-500 transition-all"
                     >
                         Save
@@ -521,6 +610,9 @@ function FieldRow({ field, isEditing, onEdit, onSave, onCancel, onDelete }: Fiel
                     )}
                     {field.type === 'map' && field.mapValueType && (
                         <p className="text-xs text-white/20 mt-1">Map values: {field.mapValueType}</p>
+                    )}
+                    {field.type === 'reference' && field.referenceCollections && field.referenceCollections.length > 0 && (
+                        <p className="text-xs text-white/20 mt-1">References: {field.referenceCollections.join(', ')}</p>
                     )}
                     {field.defaultPreset && field.defaultPreset !== 'none' && (
                         <p className="text-xs text-emerald-400/60 mt-1">Default: {field.defaultPreset}</p>

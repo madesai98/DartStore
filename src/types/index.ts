@@ -53,8 +53,8 @@ export interface FirestoreField {
     // For arrays and maps
     arrayItemType?: FirestoreFieldType;
     mapValueType?: FirestoreFieldType;
-    // For references
-    referenceCollection?: string;
+    // For references - array of collection IDs that this reference can point to
+    referenceCollections?: string[];
 }
 
 // Validation rule operator types per data type

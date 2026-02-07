@@ -1,9 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { FirestoreProject, FirestoreCollection, FirestoreField, FirestoreFieldType, ValidationGroup, ValidationRules, ValidationCondition, ProjectSecurityRules } from './types';
 import { loadProject, saveProject, autoSaveProject, createNewProject } from './utils/storage';
 import { getDefaultOperatorForType } from './utils/validationOperators';
 import { generateFullDartFile } from './utils/dartGenerator';
 import { generateSecurityRules, createDefaultProjectSecurityRules } from './utils/securityRulesGenerator';
+import { useCollaboration } from './hooks/useCollaboration';
+import { useFocusTracking } from './hooks/useFocusTracking';
+import { buildElementPath, findMeaningfulElement, resolveElementPath } from './utils/elementPath';
+import type { SyncedAppState, PeerUser } from './types/collaboration';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import CollectionEditor from './components/CollectionEditor';
@@ -12,6 +16,7 @@ import SecurityRulesBuilder from './components/SecurityRulesBuilder';
 import SecurityRulesPreview from './components/SecurityRulesPreview';
 import WelcomeScreen from './components/WelcomeScreen';
 import OverviewGraph from './components/OverviewGraph';
+import RemoteCursors from './components/RemoteCursors';
 
 type AppView = 'editor' | 'security-rules' | 'overview';
 
@@ -60,6 +65,20 @@ const getFirstCollectionId = (collections: FirestoreCollection[]): string | null
   return collections.length > 0 ? collections[0].id : null;
 };
 
+const getAllCollectionsFlat = (collections: FirestoreCollection[]): FirestoreCollection[] => {
+  const result: FirestoreCollection[] = [];
+  const traverse = (collectionList: FirestoreCollection[]) => {
+    for (const collection of collectionList) {
+      result.push(collection);
+      if (collection.subcollections.length > 0) {
+        traverse(collection.subcollections);
+      }
+    }
+  };
+  traverse(collections);
+  return result;
+};
+
 function App() {
   const [project, setProject] = useState<FirestoreProject | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
@@ -67,6 +86,43 @@ function App() {
   const [showSecurityRulesPreview, setShowSecurityRulesPreview] = useState(false);
   const [activeView, setActiveView] = useState<AppView>('editor');
   const [securityRules, setSecurityRules] = useState<ProjectSecurityRules>(createDefaultProjectSecurityRules());
+  const [isGuest, setIsGuest] = useState(false);
+
+  // ─── Collaboration ──────────────────────────────────────────────────────────
+  const handleRemoteStateSync = useCallback((state: SyncedAppState) => {
+    setProject(state.project);
+    setSecurityRules(state.securityRules);
+  }, []);
+
+  const collab = useCollaboration({
+    project,
+    securityRules,
+    selectedCollectionId,
+    activeView,
+    onRemoteStateSync: handleRemoteStateSync,
+  });
+
+  const isCollabActive = collab.status === 'hosting' || collab.status === 'connected';
+
+  // Track mouse movement for collaboration cursors
+  useEffect(() => {
+    if (!isCollabActive) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      // Skip cursor overlay elements
+      if (target.closest('[data-collab-cursors]')) return;
+      const el = findMeaningfulElement(target);
+      const path = buildElementPath(el);
+      collab.updateCursor({ elementPath: path });
+    };
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCollabActive]);
+
+  // Track focused inputs for collaboration — also moves cursor to focused element
+  useFocusTracking(isCollabActive, collab.updateFocus, collab.updateCursor);
 
   // Load project on mount
   useEffect(() => {
@@ -86,19 +142,20 @@ function App() {
     }
   }, []);
 
-  // Auto-save when project changes
+  // Auto-save when project changes (skip for guests)
   useEffect(() => {
-    if (project) {
+    if (project && !isGuest) {
       autoSaveProject(project);
     }
-  }, [project]);
+  }, [project, isGuest]);
 
-  // Auto-save security rules
+  // Auto-save security rules (skip for guests)
   useEffect(() => {
+    if (isGuest) return;
     try {
       localStorage.setItem('dartstore_security_rules', JSON.stringify(securityRules));
     } catch { /* ignore */ }
-  }, [securityRules]);
+  }, [securityRules, isGuest]);
 
   // Generate Dart code
   const dartCode = useMemo(() => {
@@ -121,7 +178,47 @@ function App() {
     const newProject = createNewProject(name, description);
     setProject(newProject);
     saveProject(newProject);
+    setIsGuest(false);
   };
+
+  const handleJoinSession = useCallback((sessionId: string, username: string) => {
+    setIsGuest(true);
+    collab.joinSession(sessionId, username);
+  }, [collab]);
+
+  const handleGuestDisconnect = useCallback(() => {
+    collab.disconnect();
+    if (isGuest) {
+      setProject(null);
+      setIsGuest(false);
+      setSecurityRules(createDefaultProjectSecurityRules());
+      setActiveView('editor');
+    }
+  }, [collab, isGuest]);
+
+  // Jump to a remote peer's location: switch tab, select collection, scroll to element
+  const handleJumpToUser = useCallback((user: PeerUser) => {
+    // 1. Switch to their active tab
+    if (user.activeView !== activeView) {
+      setActiveView(user.activeView);
+    }
+
+    // 2. Switch to their selected collection
+    if (user.selectedCollectionId) {
+      setSelectedCollectionId(user.selectedCollectionId);
+    }
+
+    // 3. After a brief delay (to let React re-render the tab/collection), scroll to their element
+    setTimeout(() => {
+      const path = user.cursor.elementPath;
+      if (path) {
+        const el = resolveElementPath(path);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    }, 150);
+  }, [activeView]);
 
   const handleUpdateProject = (updates: Partial<FirestoreProject>) => {
     if (!project) return;
@@ -268,7 +365,14 @@ function App() {
   };
 
   if (!project) {
-    return <WelcomeScreen onCreateProject={handleCreateProject} onLoadProject={setProject} />;
+    return (
+      <WelcomeScreen
+        onCreateProject={handleCreateProject}
+        onLoadProject={setProject}
+        onJoinSession={handleJoinSession}
+        isJoining={collab.status === 'connecting'}
+      />
+    );
   }
 
   return (
@@ -277,13 +381,22 @@ function App() {
         project={project}
         onUpdateProject={handleUpdateProject}
         onShowCode={() => setShowCodePreview(true)}
-        onNewProject={() => { setProject(null); setSecurityRules(createDefaultProjectSecurityRules()); setActiveView('editor'); }}
+        onNewProject={() => {
+          if (isGuest) {
+            handleGuestDisconnect();
+          } else {
+            collab.disconnect();
+            setProject(null);
+            setSecurityRules(createDefaultProjectSecurityRules());
+            setActiveView('editor');
+          }
+        }}
         activeView={activeView}
         onChangeView={setActiveView}
       />
 
       <div className="flex-1 flex overflow-hidden">
-        {activeView === 'editor' && (
+        {activeView === 'editor' ? (
           <Sidebar
             collections={project.collections}
             selectedCollectionId={selectedCollectionId}
@@ -291,6 +404,51 @@ function App() {
             onAddCollection={handleAddCollection}
             onAddSubcollection={handleAddSubcollection}
             onDeleteCollection={handleDeleteCollection}
+            collaboration={{
+              status: collab.status,
+              sessionId: collab.sessionId,
+              localUser: collab.localUser,
+              peers: collab.peers,
+              onHost: collab.hostSession,
+              onDisconnect: handleGuestDisconnect,
+              onJumpToUser: handleJumpToUser,
+            }}
+          />
+        ) : activeView === 'security-rules' ? (
+          <Sidebar
+            collections={project.collections}
+            selectedCollectionId={selectedCollectionId}
+            onSelectCollection={setSelectedCollectionId}
+            readOnly
+            title="Collections"
+            mode="security-rules"
+            securityRules={securityRules}
+            collaboration={{
+              status: collab.status,
+              sessionId: collab.sessionId,
+              localUser: collab.localUser,
+              peers: collab.peers,
+              onHost: collab.hostSession,
+              onDisconnect: handleGuestDisconnect,
+              onJumpToUser: handleJumpToUser,
+            }}
+          />
+        ) : (
+          <Sidebar
+            collections={[]}
+            selectedCollectionId={null}
+            onSelectCollection={() => { }}
+            readOnly
+            title="Overview"
+            collaboration={{
+              status: collab.status,
+              sessionId: collab.sessionId,
+              localUser: collab.localUser,
+              peers: collab.peers,
+              onHost: collab.hostSession,
+              onDisconnect: handleGuestDisconnect,
+              onJumpToUser: handleJumpToUser,
+            }}
           />
         )}
 
@@ -299,6 +457,7 @@ function App() {
             selectedCollection ? (
               <CollectionEditor
                 collection={selectedCollection}
+                allCollections={project ? getAllCollectionsFlat(project.collections) : []}
                 onUpdateCollection={(updates) => handleUpdateCollection(selectedCollection.id, updates)}
                 onAddField={(field) => handleAddField(selectedCollection.id, field)}
                 onUpdateField={(fieldId, updates) => handleUpdateField(selectedCollection.id, fieldId, updates)}
@@ -318,6 +477,7 @@ function App() {
               securityRules={securityRules}
               onChange={setSecurityRules}
               onShowPreview={() => setShowSecurityRulesPreview(true)}
+              selectedCollectionId={selectedCollectionId}
             />
           ) : (
             <OverviewGraph
@@ -343,6 +503,14 @@ function App() {
           />
         )}
       </div>
+
+      {/* Remote collaboration cursors */}
+      {isCollabActive && (
+        <RemoteCursors
+          peers={collab.peers}
+          localUserId={collab.localUser?.id ?? null}
+        />
+      )}
     </div>
   );
 }
