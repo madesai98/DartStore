@@ -1,6 +1,6 @@
 # DartStore - Firestore Database Modeler
 
-[![Deploy to GitHub Pages](https://github.com/yourusername/DartStore/actions/workflows/deploy.yml/badge.svg)](https://github.com/yourusername/DartStore/actions/workflows/deploy.yml)
+[![Deploy to GitHub Pages](https://github.com/madesai98/DartStore/actions/workflows/deploy.yml/badge.svg)](https://github.com/madesai98/DartStore/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 A modern, performant web application for modeling Firestore databases and generating type-safe Dart code for Flutter applications in real-time.
@@ -21,13 +21,13 @@ A modern, performant web application for modeling Firestore databases and genera
 
 ### Online Version
 
-Visit the live app: [https://yourusername.github.io/DartStore/](https://yourusername.github.io/DartStore/)
+Visit the live app: [https://madesai98.github.io/DartStore/](https://madesai98.github.io/DartStore/)
 
 ### Local Development
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/DartStore.git
+   git clone https://github.com/madesai98/DartStore.git
    cd DartStore
    ```
 
@@ -271,7 +271,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-Project Link: [https://github.com/yourusername/DartStore](https://github.com/yourusername/DartStore)
+Project Link: [https://github.com/madesai98/DartStore](https://github.com/madesai98/DartStore)
 
 ---
 
