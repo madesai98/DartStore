@@ -100,53 +100,6 @@ Visit the live app: [https://madesai98.github.io/DartStore/](https://madesai98.g
 - **Export Dart Code**: Download the generated `.dart` file
 - **Import Project**: Load a previously exported project
 
-## 🏗️ Project Structure
-
-```
-DartStore/
-├── src/
-│   ├── components/          # React components
-│   │   ├── WelcomeScreen.tsx
-│   │   ├── Header.tsx
-│   │   ├── Sidebar.tsx
-│   │   ├── CollectionEditor.tsx
-│   │   └── CodePreview.tsx
-│   ├── types/              # TypeScript type definitions
-│   │   └── index.ts
-│   ├── utils/              # Utility functions
-│   │   ├── dartGenerator.ts # Dart code generation
-│   │   └── storage.ts       # Local storage management
-│   ├── App.tsx             # Main application component
-│   ├── main.tsx            # Application entry point
-│   └── index.css           # Global styles
-├── .github/
-│   └── workflows/
-│       └── deploy.yml      # GitHub Pages deployment
-├── public/                 # Static assets
-├── index.html              # HTML template
-├── vite.config.ts          # Vite configuration
-├── tailwind.config.js      # Tailwind CSS configuration
-├── tsconfig.json           # TypeScript configuration
-└── package.json            # Project dependencies
-```
-
-## 🛠️ Tech Stack
-
-- **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite 6
-- **Styling**: Tailwind CSS 3
-- **Code Editor**: Monaco Editor
-- **Icons**: Lucide React
-- **Deployment**: GitHub Pages
-
-## 🎨 Design Philosophy
-
-- **Performance First** - Optimized bundle splitting and lazy loading
-- **Type Safety** - Full TypeScript coverage for reliability
-- **User Experience** - Auto-save, real-time feedback, keyboard shortcuts
-- **Accessibility** - Semantic HTML and ARIA labels
-- **Maintainability** - Clean code architecture with separation of concerns
-
 ## 📦 Generated Code Features
 
 The Dart code generator creates:
@@ -272,7 +225,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📧 Contact
 
 Project Link: [https://github.com/madesai98/DartStore](https://github.com/madesai98/DartStore)
-
----
-
-Made with ❤️ for the Flutter community
