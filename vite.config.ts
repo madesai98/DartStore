@@ -14,6 +14,7 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
           'monaco-editor': ['@monaco-editor/react'],
+          'react-flow': ['@xyflow/react', 'dagre'],
         },
       },
     },

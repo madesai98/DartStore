@@ -55,3 +55,26 @@ select option {
   background: #1e1e3f;
   color: #e2e8f0;
 }
+
+/* React Flow dark theme overrides */
+.overview-graph .react-flow__pane {
+  cursor: grab;
+}
+
+.overview-graph .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.overview-graph .react-flow__node {
+  cursor: default;
+}
+
+.overview-graph .react-flow__minimap {
+  bottom: 16px;
+  right: 16px;
+}
+
+.overview-graph .react-flow__controls {
+  bottom: 16px;
+  left: 16px;
+}

@@ -152,12 +152,12 @@ export default function Sidebar({
                                 </div>
                             )}
                             {!isSecurityMode && (
-                            <div className="text-xs text-white/20 mt-1">
-                                {collection.fields.length} field{collection.fields.length !== 1 ? 's' : ''}
-                                {subcollectionCount > 0 && (
-                                    <span> · {subcollectionCount} subcollection{subcollectionCount !== 1 ? 's' : ''}</span>
-                                )}
-                            </div>
+                                <div className="text-xs text-white/20 mt-1">
+                                    {collection.fields.length} field{collection.fields.length !== 1 ? 's' : ''}
+                                    {subcollectionCount > 0 && (
+                                        <span> · {subcollectionCount} subcollection{subcollectionCount !== 1 ? 's' : ''}</span>
+                                    )}
+                                </div>
                             )}
                         </div>
                         {!readOnly && (
