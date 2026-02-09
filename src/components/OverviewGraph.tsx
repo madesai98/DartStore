@@ -20,6 +20,7 @@ import dagre from 'dagre';
 import {
     Shield, ShieldCheck, CheckCircle2,
     Type, Hash, ToggleLeft, Clock, MapPin, Link2, List, Braces, Ban,
+    Info, X,
 } from 'lucide-react';
 import type {
     FirestoreCollection,
@@ -806,6 +807,7 @@ function OverviewGraphInner({
     securityRules: ProjectSecurityRules;
 }) {
     const [highlightedEdgeIds, setHighlightedEdgeIds] = useState<Set<string>>(new Set());
+    const [legendOpen, setLegendOpen] = useState(true);
 
     // Build nodes & edges, then auto-layout with dagre
     const { nodes, edges } = useMemo(() => {
@@ -843,7 +845,7 @@ function OverviewGraphInner({
     }
 
     return (
-        <div className="h-full w-full overview-graph">
+        <div className="h-full w-full overview-graph relative">
             <HighlightContext.Provider value={highlightCtx}>
                 <ReactFlow
                     nodes={nodes}
@@ -933,18 +935,31 @@ function OverviewGraphInner({
                 </ReactFlow>
             </HighlightContext.Provider>
 
-            {/* Legend overlay */}
-            <div className="absolute top-20 right-4 z-20 flex items-center gap-3 bg-[#1e1e3a]/90 backdrop-blur-sm rounded-lg border border-white/[0.06] px-3 py-2">
-                <span className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Legend</span>
-                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-violet-500" /><span className="text-[11px] text-white/40">Collection</span></div>
-                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-cyan-500" /><span className="text-[11px] text-white/40">Subcollection</span></div>
-                <div className="flex items-center gap-1.5">
-                    <svg width="16" height="6"><line x1="0" y1="3" x2="16" y2="3" stroke="rgba(34,211,238,0.5)" strokeWidth="1.5" strokeDasharray="3,2" /></svg>
-                    <span className="text-[11px] text-white/40">Reference</span>
+            {/* Legend overlay — positioned relative to this container */}
+            {legendOpen ? (
+                <div className="absolute top-3 right-3 z-20 flex items-center gap-3 bg-[#1e1e3a]/90 backdrop-blur-sm rounded-lg border border-white/[0.06] px-3 py-2">
+                    <span className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Legend</span>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-violet-500" /><span className="text-[11px] text-white/40">Collection</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-cyan-500" /><span className="text-[11px] text-white/40">Subcollection</span></div>
+                    <div className="flex items-center gap-1.5">
+                        <svg width="16" height="6"><line x1="0" y1="3" x2="16" y2="3" stroke="rgba(34,211,238,0.5)" strokeWidth="1.5" strokeDasharray="3,2" /></svg>
+                        <span className="text-[11px] text-white/40">Reference</span>
+                    </div>
+                    <div className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3 text-amber-400" /><span className="text-[11px] text-white/40">Security Rules</span></div>
+                    <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-emerald-400" /><span className="text-[11px] text-white/40">Validation</span></div>
+                    <button onClick={() => setLegendOpen(false)} className="ml-1 p-0.5 text-white/20 hover:text-white/50 transition-colors rounded">
+                        <X className="w-3 h-3" />
+                    </button>
                 </div>
-                <div className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3 text-amber-400" /><span className="text-[11px] text-white/40">Security Rules</span></div>
-                <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-emerald-400" /><span className="text-[11px] text-white/40">Validation</span></div>
-            </div>
+            ) : (
+                <button
+                    onClick={() => setLegendOpen(true)}
+                    className="absolute top-3 right-3 z-20 p-2 bg-[#1e1e3a]/90 backdrop-blur-sm rounded-lg border border-white/[0.06] text-white/30 hover:text-white/60 transition-colors"
+                    title="Show legend"
+                >
+                    <Info className="w-4 h-4" />
+                </button>
+            )}
         </div>
     );
 }

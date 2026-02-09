@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, FolderOpen, ShieldCheck, ShieldX } from 'lucide-react';
+import { Plus, Trash2, FolderOpen, ShieldCheck, ShieldX, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { FirestoreCollection, ProjectSecurityRules, CollectionSecurityRules } from '../types';
 import type { PeerUser, SessionStatus } from '../types/collaboration';
 import { generateId } from '../utils/storage';
@@ -29,6 +29,8 @@ interface SidebarProps {
     title?: string;
     mode?: SidebarMode;
     securityRules?: ProjectSecurityRules;
+    collapsed?: boolean;
+    onToggleCollapse?: () => void;
 }
 
 export default function Sidebar({
@@ -43,6 +45,8 @@ export default function Sidebar({
     title = 'Collections',
     mode = 'default',
     securityRules,
+    collapsed = false,
+    onToggleCollapse,
 }: SidebarProps) {
     const isSecurityMode = mode === 'security-rules';
     const [showNewCollection, setShowNewCollection] = useState(false);
@@ -244,88 +248,110 @@ export default function Sidebar({
     };
 
     return (
-        <aside className="w-64 bg-white/[0.02] flex flex-col">
-            <div className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-[11px] font-semibold text-white/30 uppercase tracking-widest">
-                        {title}
-                    </h2>
-                    {!readOnly && onAddCollection && (
-                        <button
-                            onClick={() => setShowNewCollection(true)}
-                            className="p-1.5 hover:bg-white/[0.06] text-violet-400/70 rounded-lg transition-all duration-200"
-                            title="Add Collection"
-                        >
-                            <Plus className="w-4 h-4" />
-                        </button>
-                    )}
-                </div>
-
-                {!readOnly && showNewCollection && (
-                    <form onSubmit={handleCreateCollection} className="space-y-2 mb-3 p-3 bg-white/[0.04] rounded-xl">
-                        <input
-                            type="text"
-                            value={newCollectionName}
-                            onChange={(e) => setNewCollectionName(e.target.value)}
-                            placeholder="Collection name"
-                            className="w-full px-3 py-2 text-sm bg-white/[0.06] border-0 rounded-lg text-white/80 placeholder-white/20 focus:ring-1 focus:ring-violet-500/30 transition-all"
-                            autoFocus
-                        />
-                        <input
-                            type="text"
-                            value={newCollectionDesc}
-                            onChange={(e) => setNewCollectionDesc(e.target.value)}
-                            placeholder="Description (optional)"
-                            className="w-full px-3 py-2 text-sm bg-white/[0.06] border-0 rounded-lg text-white/80 placeholder-white/20 focus:ring-1 focus:ring-violet-500/30 transition-all"
-                        />
-                        <div className="flex gap-2">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowNewCollection(false);
-                                    setNewCollectionName('');
-                                    setNewCollectionDesc('');
-                                }}
-                                className="flex-1 px-3 py-1.5 text-sm text-white/40 rounded-lg hover:bg-white/[0.04] hover:text-white/60 transition-all"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                className="flex-1 px-3 py-1.5 text-sm bg-violet-500/80 text-white rounded-lg hover:bg-violet-500 transition-all"
-                            >
-                                Create
-                            </button>
+        <aside className={`bg-white/[0.02] flex flex-col transition-all duration-300 ${collapsed ? 'w-10' : 'w-64'}`}>
+            {/* Collapse / Expand toggle */}
+            {collapsed ? (
+                <button
+                    onClick={onToggleCollapse}
+                    className="p-2.5 mx-auto mt-2 text-white/30 hover:text-white/60 hover:bg-white/[0.06] rounded-lg transition-all"
+                    title="Expand sidebar"
+                >
+                    <PanelLeftOpen className="w-4 h-4" />
+                </button>
+            ) : (
+                <>
+                    <div className="p-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-[11px] font-semibold text-white/30 uppercase tracking-widest">
+                                {title}
+                            </h2>
+                            <div className="flex items-center gap-1">
+                                {!readOnly && onAddCollection && (
+                                    <button
+                                        onClick={() => setShowNewCollection(true)}
+                                        className="p-1.5 hover:bg-white/[0.06] text-violet-400/70 rounded-lg transition-all duration-200"
+                                        title="Add Collection"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                    </button>
+                                )}
+                                <button
+                                    onClick={onToggleCollapse}
+                                    className="p-1.5 text-white/20 hover:text-white/50 hover:bg-white/[0.06] rounded-lg transition-all duration-200"
+                                    title="Collapse sidebar"
+                                >
+                                    <PanelLeftClose className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
-                    </form>
-                )}
-            </div>
 
-            <div className="flex-1 overflow-y-auto px-2">
-                {collections.length === 0 ? (
-                    <div className="p-8 text-center">
-                        <FolderOpen className="w-10 h-10 mx-auto mb-3 text-white/10" />
-                        <p className="text-sm text-white/25">No collections yet</p>
-                        <p className="text-xs mt-1 text-white/15">Click + to create one</p>
+                        {!readOnly && showNewCollection && (
+                            <form onSubmit={handleCreateCollection} className="space-y-2 mb-3 p-3 bg-white/[0.04] rounded-xl">
+                                <input
+                                    type="text"
+                                    value={newCollectionName}
+                                    onChange={(e) => setNewCollectionName(e.target.value)}
+                                    placeholder="Collection name"
+                                    className="w-full px-3 py-2 text-sm bg-white/[0.06] border-0 rounded-lg text-white/80 placeholder-white/20 focus:ring-1 focus:ring-violet-500/30 transition-all"
+                                    autoFocus
+                                />
+                                <input
+                                    type="text"
+                                    value={newCollectionDesc}
+                                    onChange={(e) => setNewCollectionDesc(e.target.value)}
+                                    placeholder="Description (optional)"
+                                    className="w-full px-3 py-2 text-sm bg-white/[0.06] border-0 rounded-lg text-white/80 placeholder-white/20 focus:ring-1 focus:ring-violet-500/30 transition-all"
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowNewCollection(false);
+                                            setNewCollectionName('');
+                                            setNewCollectionDesc('');
+                                        }}
+                                        className="flex-1 px-3 py-1.5 text-sm text-white/40 rounded-lg hover:bg-white/[0.04] hover:text-white/60 transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-3 py-1.5 text-sm bg-violet-500/80 text-white rounded-lg hover:bg-violet-500 transition-all"
+                                    >
+                                        Create
+                                    </button>
+                                </div>
+                            </form>
+                        )}
                     </div>
-                ) : (
-                    <div className="space-y-0.5">
-                        {collections.map((collection) => renderCollectionNode(collection, 0))}
-                    </div>
-                )}
-            </div>
 
-            {/* Collaboration panel pinned to bottom */}
-            {collaboration && (
-                <CollaborationPanel
-                    status={collaboration.status}
-                    sessionId={collaboration.sessionId}
-                    localUser={collaboration.localUser}
-                    peers={collaboration.peers}
-                    onHost={collaboration.onHost}
-                    onDisconnect={collaboration.onDisconnect}
-                    onJumpToUser={collaboration.onJumpToUser}
-                />
+                    <div className="flex-1 overflow-y-auto px-2">
+                        {collections.length === 0 ? (
+                            <div className="p-8 text-center">
+                                <FolderOpen className="w-10 h-10 mx-auto mb-3 text-white/10" />
+                                <p className="text-sm text-white/25">No collections yet</p>
+                                <p className="text-xs mt-1 text-white/15">Click + to create one</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-0.5">
+                                {collections.map((collection) => renderCollectionNode(collection, 0))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Collaboration panel pinned to bottom */}
+                    {collaboration && (
+                        <CollaborationPanel
+                            status={collaboration.status}
+                            sessionId={collaboration.sessionId}
+                            localUser={collaboration.localUser}
+                            peers={collaboration.peers}
+                            onHost={collaboration.onHost}
+                            onDisconnect={collaboration.onDisconnect}
+                            onJumpToUser={collaboration.onJumpToUser}
+                        />
+                    )}
+                </>
             )}
         </aside>
     );

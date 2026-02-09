@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
     Plus, Trash2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight,
-    Shield, ShieldX, GitBranch, Copy, Eye, EyeOff,
+    Shield, ShieldX, GitBranch, Copy, Eye, EyeOff, HelpCircle,
 } from 'lucide-react';
 import type {
     FirestoreCollection,
@@ -85,53 +85,11 @@ export default function SecurityRulesBuilder({ project, securityRules, onChange,
 
     return (
         <div className="h-full flex flex-col">
-            {/* Header */}
-            <div className="p-6 pb-0">
-                <div className="max-w-5xl mx-auto">
-                    <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-amber-500/20 p-2 rounded-xl">
-                                <Shield className="w-5 h-5 text-amber-300" />
-                            </div>
-                            <div>
-                                <h2 className="text-2xl font-bold text-white/90">Security Rules</h2>
-                                <p className="text-sm text-white/30 mt-0.5">
-                                    Define Firestore security rules for your collections
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={onShowPreview}
-                                className="flex items-center gap-2 px-3.5 py-1.5 text-amber-300/80 hover:text-amber-200 hover:bg-white/[0.05] rounded-lg transition-all duration-200"
-                            >
-                                <Eye className="w-4 h-4" />
-                                <span className="font-medium text-sm">Preview Rules</span>
-                            </button>
-                            <button
-                                onClick={handleToggleEnabled}
-                                className="flex items-center gap-1.5 text-sm transition-colors"
-                                title={securityRules.enabled ? 'Disable security rules' : 'Enable security rules'}
-                            >
-                                {securityRules.enabled ? (
-                                    <ToggleRight className="w-5 h-5 text-amber-400" />
-                                ) : (
-                                    <ToggleLeft className="w-5 h-5 text-white/20" />
-                                )}
-                                <span className={securityRules.enabled ? 'text-amber-300/70' : 'text-white/20'}>
-                                    {securityRules.enabled ? 'Active' : 'Inactive'}
-                                </span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Body */}
-            <div className={`flex-1 overflow-y-auto p-6 transition-opacity duration-200 ${securityRules.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-                <div className="max-w-5xl mx-auto">
-                    {/* Rules Version */}
-                    <div className="flex items-center gap-4 mb-6">
+            {/* Compact toolbar */}
+            <div className="px-6 py-3 border-b border-white/[0.04]">
+                <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+                    {/* Left: version picker */}
+                    <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-white/40">Rules Version</span>
                         <div className="flex rounded-lg overflow-hidden bg-white/[0.04]">
                             <button
@@ -153,12 +111,46 @@ export default function SecurityRulesBuilder({ project, securityRules, onChange,
                                 v2
                             </button>
                         </div>
-                        <span className="text-xs text-white/20">
-                            {securityRules.firestoreVersion === '2'
-                                ? 'Recommended — supports recursive wildcards & more'
-                                : 'Legacy — limited features'}
-                        </span>
+                        <div className="relative group">
+                            <HelpCircle className="w-3.5 h-3.5 text-white/20 cursor-help" />
+                            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block w-52 px-3 py-2 rounded-lg bg-[#1a1a40]/95 border border-white/[0.08] shadow-xl text-[11px] text-white/50 z-[9999] pointer-events-none">
+                                {securityRules.firestoreVersion === '2'
+                                    ? 'Recommended — supports recursive wildcards & more'
+                                    : 'Legacy — limited features'}
+                            </div>
+                        </div>
                     </div>
+
+                    {/* Right: preview + active toggle */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={onShowPreview}
+                            className="flex items-center gap-2 px-3.5 py-1.5 text-amber-300/80 hover:text-amber-200 hover:bg-white/[0.05] rounded-lg transition-all duration-200"
+                        >
+                            <Eye className="w-4 h-4" />
+                            <span className="font-medium text-sm">Preview Rules</span>
+                        </button>
+                        <button
+                            onClick={handleToggleEnabled}
+                            className="flex items-center gap-1.5 text-sm transition-colors"
+                            title={securityRules.enabled ? 'Disable security rules' : 'Enable security rules'}
+                        >
+                            {securityRules.enabled ? (
+                                <ToggleRight className="w-5 h-5 text-amber-400" />
+                            ) : (
+                                <ToggleLeft className="w-5 h-5 text-white/20" />
+                            )}
+                            <span className={securityRules.enabled ? 'text-amber-300/70' : 'text-white/20'}>
+                                {securityRules.enabled ? 'Active' : 'Inactive'}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Body */}
+            <div className={`flex-1 overflow-y-auto p-6 transition-opacity duration-200 ${securityRules.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                <div className="max-w-5xl mx-auto">
 
                     {allCollections.length === 0 ? (
                         <div className="text-center py-16">

@@ -87,6 +87,7 @@ function App() {
   const [activeView, setActiveView] = useState<AppView>('editor');
   const [securityRules, setSecurityRules] = useState<ProjectSecurityRules>(createDefaultProjectSecurityRules());
   const [isGuest, setIsGuest] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // ─── Collaboration ──────────────────────────────────────────────────────────
   const handleRemoteStateSync = useCallback((state: SyncedAppState) => {
@@ -404,6 +405,8 @@ function App() {
             onAddCollection={handleAddCollection}
             onAddSubcollection={handleAddSubcollection}
             onDeleteCollection={handleDeleteCollection}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(c => !c)}
             collaboration={{
               status: collab.status,
               sessionId: collab.sessionId,
@@ -423,6 +426,8 @@ function App() {
             title="Collections"
             mode="security-rules"
             securityRules={securityRules}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(c => !c)}
             collaboration={{
               status: collab.status,
               sessionId: collab.sessionId,
@@ -440,6 +445,8 @@ function App() {
             onSelectCollection={() => { }}
             readOnly
             title="Overview"
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(c => !c)}
             collaboration={{
               status: collab.status,
               sessionId: collab.sessionId,
