@@ -161,8 +161,8 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
                             key={tab.view}
                             onClick={() => onChangeView(tab.view)}
                             className={`flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${activeView === tab.view
-                                    ? tab.activeClass
-                                    : 'text-white/40 hover:text-white/60 hover:bg-white/[0.04]'
+                                ? tab.activeClass
+                                : 'text-white/40 hover:text-white/60 hover:bg-white/[0.04]'
                                 }`}
                             title={tab.label}
                         >
