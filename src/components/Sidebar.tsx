@@ -133,6 +133,8 @@ export default function Sidebar({
                 <div
                     role="button"
                     tabIndex={0}
+                    aria-selected={isSelected}
+                    aria-label={`Collection: ${collection.name}`}
                     onClick={() => onSelectCollection(collection.id)}
                     onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
@@ -195,7 +197,7 @@ export default function Sidebar({
                                         setNewSubcollectionDesc('');
                                     }}
                                     className="p-1 hover:bg-white/[0.06] text-violet-400/70 rounded-lg transition-all"
-                                    title="Add subcollection"
+                                    aria-label={`Add subcollection to ${collection.name}`}
                                     type="button"
                                 >
                                     <Plus className="w-3.5 h-3.5" />
@@ -207,7 +209,7 @@ export default function Sidebar({
                                         ? 'bg-red-500/20 text-red-400'
                                         : 'hover:bg-red-500/10 text-red-400/60'
                                         }`}
-                                    title={confirmDeleteId === collection.id ? 'Click again to confirm' : 'Delete collection'}
+                                    aria-label={confirmDeleteId === collection.id ? 'Confirm delete' : `Delete ${collection.name}`}
                                     type="button"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -269,13 +271,13 @@ export default function Sidebar({
     };
 
     return (
-        <aside className={`bg-white/[0.02] flex flex-col transition-all duration-300 ${collapsed ? 'w-10' : 'w-64'}`}>
+        <nav aria-label={title} className={`bg-white/[0.02] flex flex-col transition-all duration-300 ${collapsed ? 'w-10' : 'w-64'}`}>
             {/* Collapse / Expand toggle */}
             {collapsed ? (
                 <button
                     onClick={onToggleCollapse}
                     className="p-2.5 mx-auto mt-2 text-white/30 hover:text-white/60 hover:bg-white/[0.06] rounded-lg transition-all"
-                    title="Expand sidebar"
+                    aria-label="Expand sidebar"
                 >
                     <PanelLeftOpen className="w-4 h-4" />
                 </button>
@@ -291,7 +293,7 @@ export default function Sidebar({
                                     <button
                                         onClick={() => setShowNewCollection(true)}
                                         className="p-1.5 hover:bg-white/[0.06] text-violet-400/70 rounded-lg transition-all duration-200"
-                                        title="Add Collection"
+                                        aria-label="Add collection"
                                     >
                                         <Plus className="w-4 h-4" />
                                     </button>
@@ -299,7 +301,7 @@ export default function Sidebar({
                                 <button
                                     onClick={onToggleCollapse}
                                     className="p-1.5 text-white/20 hover:text-white/50 hover:bg-white/[0.06] rounded-lg transition-all duration-200"
-                                    title="Collapse sidebar"
+                                    aria-label="Collapse sidebar"
                                 >
                                     <PanelLeftClose className="w-4 h-4" />
                                 </button>
@@ -374,6 +376,6 @@ export default function Sidebar({
                     )}
                 </>
             )}
-        </aside>
+        </nav>
     );
 }

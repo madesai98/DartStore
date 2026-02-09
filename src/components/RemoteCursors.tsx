@@ -53,6 +53,7 @@ export default function RemoteCursors({ peers, localUserId }: RemoteCursorsProps
             className="pointer-events-none fixed inset-0"
             style={{ zIndex: 9999 }}
             data-collab-cursors
+            aria-hidden="true"
         >
             {remotePeers.map((peer) => (
                 <div

@@ -1,5 +1,5 @@
 import { X, Copy, Download, Check, FileCode, Shield, Server, Pencil } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { exportDartCode } from '../utils/storage';
 import type { ProjectTransformConfig } from '../types';
@@ -35,6 +35,21 @@ export default function CodePreview({
     const [activeTab, setActiveTab] = useState<CodeTab>('dart');
     const [editingEndpoint, setEditingEndpoint] = useState(false);
     const [endpointValue, setEndpointValue] = useState(transformConfig.endpointName);
+    const dialogRef = useRef<HTMLDivElement>(null);
+
+    // Escape key to close
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+        document.addEventListener('keydown', handler);
+        return () => document.removeEventListener('keydown', handler);
+    }, [onClose]);
+
+    // Focus the dialog on mount
+    useEffect(() => {
+        dialogRef.current?.focus();
+    }, []);
 
     const currentTab = TABS.find(t => t.id === activeTab)!;
     const currentCode = activeTab === 'dart' ? dartCode : activeTab === 'security' ? securityRulesCode : cloudFunctionCode;
@@ -73,23 +88,25 @@ export default function CodePreview({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-center justify-center z-50 p-6">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-center justify-center z-50 p-6" role="dialog" aria-modal="true" aria-labelledby="code-preview-title" ref={dialogRef} tabIndex={-1} style={{ overscrollBehavior: 'contain' }}>
             <div className="bg-[#1a1a3e]/95 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4">
                     <div className="flex items-center gap-4 flex-1 min-w-0">
                         <div className="min-w-0">
-                            <h2 className="text-lg font-semibold text-white/90">View Code</h2>
+                            <h2 id="code-preview-title" className="text-lg font-semibold text-white/90">View Code</h2>
                             <p className="text-sm text-white/30 mt-0.5">
                                 Ready to use in your project
                             </p>
                         </div>
 
                         {/* Tab switcher */}
-                        <div className="flex items-center bg-white/[0.04] rounded-lg overflow-hidden ml-4">
+                        <div className="flex items-center bg-white/[0.04] rounded-lg overflow-hidden ml-4" role="tablist">
                             {TABS.map(tab => (
                                 <button
                                     key={tab.id}
+                                    role="tab"
+                                    aria-selected={activeTab === tab.id}
                                     onClick={() => { setActiveTab(tab.id); setCopied(false); }}
                                     className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all duration-200 ${activeTab === tab.id
                                         ? tab.accentClass
@@ -161,7 +178,7 @@ export default function CodePreview({
                         <button
                             onClick={onClose}
                             className="p-2 text-white/30 hover:text-white/60 hover:bg-white/[0.05] rounded-lg transition-all duration-200 ml-1"
-                            title="Close"
+                            aria-label="Close code preview"
                         >
                             <X className="w-5 h-5" />
                         </button>

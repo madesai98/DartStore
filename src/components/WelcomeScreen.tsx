@@ -31,7 +31,7 @@ export default function WelcomeScreen({ onCreateProject, onLoadProject, onJoinSe
         try {
             const project = await importProject(file);
             onLoadProject(project);
-        } catch (error) {
+        } catch {
             alert('Failed to import project. Please check the file format.');
         }
     };
@@ -81,7 +81,7 @@ export default function WelcomeScreen({ onCreateProject, onLoadProject, onJoinSe
                                 onChange={(e) => setProjectDescription(e.target.value)}
                                 className="w-full px-4 py-2.5 bg-white/[0.06] border-0 rounded-lg text-white/80 placeholder-white/20 focus:ring-1 focus:ring-violet-500/30 resize-none transition-all"
                                 rows={3}
-                                placeholder="Describe your Firestore database..."
+                                placeholder="Describe your Firestore database…"
                             />
                         </div>
 
@@ -177,7 +177,7 @@ export default function WelcomeScreen({ onCreateProject, onLoadProject, onJoinSe
                                     {isJoining ? (
                                         <>
                                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                            Connecting...
+                                            Connecting…
                                         </>
                                     ) : (
                                         <>

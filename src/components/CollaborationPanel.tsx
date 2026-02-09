@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import {
     Users,
     Wifi,
@@ -41,18 +41,16 @@ export default function CollaborationPanel({
     onDisconnect,
     onJumpToUser,
 }: CollaborationPanelProps) {
-    const [isCollapsed, setIsCollapsed] = useState(true);
+    const [manualCollapsed, setManualCollapsed] = useState<boolean | null>(null);
     const [username, setUsername] = useState('');
     const [showHostForm, setShowHostForm] = useState(false);
     const [copied, setCopied] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Auto-expand when connected
-    useEffect(() => {
-        if (status === 'hosting' || status === 'connected') {
-            setIsCollapsed(false);
-        }
-    }, [status]);
+    // Auto-expand when connected; user can override by toggling manually
+    const isActive = status === 'hosting' || status === 'connected';
+    const isCollapsed = manualCollapsed ?? !isActive;
+    const setIsCollapsed = (v: boolean) => setManualCollapsed(v);
 
     const handleHost = useCallback((e: React.FormEvent) => {
         e.preventDefault();
@@ -79,7 +77,7 @@ export default function CollaborationPanel({
 
     const isConnected = status === 'hosting' || status === 'connected';
     const statusColor = status === 'hosting' ? 'text-emerald-400' : status === 'connected' ? 'text-blue-400' : status === 'connecting' ? 'text-amber-400' : 'text-white/30';
-    const statusLabel = status === 'hosting' ? 'Hosting' : status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : 'Offline';
+    const statusLabel = status === 'hosting' ? 'Hosting' : status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting…' : 'Offline';
 
     return (
         <div className="border-t border-white/[0.06] bg-white/[0.02]">
@@ -164,7 +162,7 @@ export default function CollaborationPanel({
                     {status === 'connecting' && (
                         <div className="flex items-center justify-center gap-2 py-3">
                             <div className="w-3 h-3 border-2 border-amber-400/40 border-t-amber-400 rounded-full animate-spin" />
-                            <span className="text-xs text-amber-400/70">Connecting...</span>
+                            <span className="text-xs text-amber-400/70">Connecting…</span>
                         </div>
                     )}
 

@@ -71,6 +71,7 @@ function createEmptyGroup(): ValidationGroup {
     };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function createDefaultValidationRules(): ValidationRules {
     return {
         clientEnabled: false,
@@ -635,7 +636,7 @@ function ConditionRow({ condition, fields, onUpdate, onDelete }: ConditionRowPro
                             onChange={(e) => onUpdate({ value: e.target.value })}
                             className="px-2.5 py-1.5 bg-white/[0.06] border-0 rounded-lg text-white/70 text-sm focus:ring-1 focus:ring-violet-500/30 transition-all min-w-[80px]"
                         >
-                            <option value="">select...</option>
+                            <option value="">select…</option>
                             <option value="true">true</option>
                             <option value="false">false</option>
                         </select>

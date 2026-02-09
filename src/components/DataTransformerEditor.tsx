@@ -447,7 +447,7 @@ function NodePalette({ onAddNode, onClose, filterType }: NodePaletteProps) {
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
-                            placeholder="Search transforms..."
+                            placeholder="Search transforms…"
                             className="w-full pl-8 pr-8 py-2 text-sm bg-white/[0.06] border-0 rounded-lg text-white/80 placeholder-white/25 focus:ring-1 focus:ring-violet-500/30 focus:outline-none"
                         />
                         <button
@@ -521,6 +521,7 @@ function FlowEditorInner({ collection, direction, config, onConfigChange }: Flow
     const nodesKey = direction === 'read' ? 'readNodes' as const : 'writeNodes' as const;
     const edgesKey = direction === 'read' ? 'readEdges' as const : 'writeEdges' as const;
     const [showPalette, setShowPalette] = useState(false);
+    const [pendingSourceType, setPendingSourceType] = useState<FirestoreFieldType | undefined>(undefined);
     const flowWrapperRef = useRef<HTMLDivElement>(null);
 
     /** Tracks a pending connection when user drags from an output handle and drops on empty canvas */
@@ -566,8 +567,6 @@ function FlowEditorInner({ collection, direction, config, onConfigChange }: Flow
     // Field-node positions — stored in a simple ref-backed state per direction
     const [fieldNodePositions, setFieldNodePositions] = useState<Record<string, { x: number; y: number }>>({});
     const posKey = `${direction}-fieldPositions`;
-    const leftNodePos = fieldNodePositions[`${posKey}-left`] ?? { x: 50, y: 50 };
-    const rightNodePos = fieldNodePositions[`${posKey}-right`] ?? { x: 700, y: 50 };
 
     // Param change handler
     const handleParamChange = useCallback((nodeId: string, key: string, value: string) => {
@@ -589,6 +588,8 @@ function FlowEditorInner({ collection, direction, config, onConfigChange }: Flow
     // Build React Flow nodes
     const flowNodes = useMemo<Node[]>(() => {
         const nodes: Node[] = [];
+        const leftNodePos = fieldNodePositions[`${posKey}-left`] ?? { x: 50, y: 50 };
+        const rightNodePos = fieldNodePositions[`${posKey}-right`] ?? { x: 700, y: 50 };
 
         // Left (source) node — draggable
         nodes.push({
@@ -637,7 +638,7 @@ function FlowEditorInner({ collection, direction, config, onConfigChange }: Flow
         }
 
         return nodes;
-    }, [leftSide, rightSide, leftLabel, rightLabel, leftFields, rightFields, direction, transformNodes, handleParamChange, handleDeleteNode, leftNodePos, rightNodePos]);
+    }, [leftSide, rightSide, leftLabel, rightLabel, leftFields, rightFields, direction, transformNodes, handleParamChange, handleDeleteNode, fieldNodePositions, posKey]);
 
     // Build React Flow edges
     const flowEdges = useMemo<Edge[]>(() => {
@@ -812,6 +813,7 @@ function FlowEditorInner({ collection, direction, config, onConfigChange }: Flow
     const onConnectStart = useCallback((_event: MouseEvent | TouchEvent, params: { nodeId: string | null; handleId: string | null; handleType: string | null }) => {
         if (!params.nodeId || !params.handleId || params.handleType !== 'source') {
             pendingConnectionRef.current = null;
+            setPendingSourceType(undefined);
             return;
         }
 
@@ -836,8 +838,10 @@ function FlowEditorInner({ collection, direction, config, onConfigChange }: Flow
                 sourceHandleId: params.handleId,
                 sourceType,
             };
+            setPendingSourceType(sourceType);
         } else {
             pendingConnectionRef.current = null;
+            setPendingSourceType(undefined);
         }
     }, [leftSide, leftFields, transformNodes]);
 
@@ -855,6 +859,7 @@ function FlowEditorInner({ collection, direction, config, onConfigChange }: Flow
             setShowPalette(true);
         } else {
             pendingConnectionRef.current = null;
+            setPendingSourceType(undefined);
         }
     }, []);
 
@@ -900,6 +905,7 @@ function FlowEditorInner({ collection, direction, config, onConfigChange }: Flow
                 updatedEdges = [...updatedEdges, newEdge];
             }
             pendingConnectionRef.current = null;
+            setPendingSourceType(undefined);
         }
 
         onConfigChange({
@@ -961,8 +967,9 @@ function FlowEditorInner({ collection, direction, config, onConfigChange }: Flow
                     onClose={() => {
                         setShowPalette(false);
                         pendingConnectionRef.current = null;
+                        setPendingSourceType(undefined);
                     }}
-                    filterType={pendingConnectionRef.current?.sourceType}
+                    filterType={pendingSourceType}
                 />
             )}
         </div>

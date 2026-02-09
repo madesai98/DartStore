@@ -142,7 +142,7 @@ function describeCondition(cond: SecurityCondition): string {
         case 'fieldEquals': return `${cond.fieldTarget === 'request' ? 'req' : 'res'}.${cond.fieldPath ?? ''} = ${cond.fieldValue ?? ''}`;
         case 'fieldExists': return `${cond.existsTarget === 'request' ? 'req' : 'res'} has ${cond.existsFieldPath ?? ''}`;
         case 'fieldType': return `${cond.typeFieldPath ?? ''} is ${cond.typeCheck ?? ''}`;
-        case 'documentExists': return `exists(${cond.documentPath ?? '...'})`;
+        case 'documentExists': return `exists(${cond.documentPath ?? '…'})`;
         case 'resourceField': return cond.resourceExpression ?? 'resource expr';
         case 'requestField': return cond.resourceExpression ?? 'request expr';
         case 'timeLimit': return `time < ${cond.timeLimitHours ?? 0}h`;

@@ -38,14 +38,16 @@ export function firestoreToDartType(
         case 'reference':
             dartType = 'DocumentReference';
             break;
-        case 'array':
+        case 'array': {
             const itemType = arrayItemType ? firestoreToDartType(arrayItemType, false) : 'dynamic';
             dartType = `List<${itemType}>`;
             break;
-        case 'map':
+        }
+        case 'map': {
             const valueType = mapValueType ? firestoreToDartType(mapValueType, false) : 'dynamic';
             dartType = `Map<String, ${valueType}>`;
             break;
+        }
         case 'null':
             dartType = 'dynamic';
             break;
@@ -270,7 +272,7 @@ function generateConstructor(className: string, fields: FirestoreField[]): strin
     const params = fields.map(field => {
         const fieldName = toCamelCase(field.name);
         const hasDefault = field.defaultPreset && field.defaultPreset !== 'none' && field.defaultPreset !== 'custom';
-        const defaultValue = hasDefault ? getDefaultValueForPreset(field.defaultPreset, field.type) : '';
+        const defaultValue = hasDefault ? getDefaultValueForPreset(field.defaultPreset) : '';
         const defaultPart = defaultValue ? ` = ${defaultValue}` : '';
         // Required fields need 'required' keyword unless they have a default value
         const needsRequired = field.isRequired && !hasDefault;
@@ -339,12 +341,14 @@ function generateParseLogic(field: FirestoreField): string {
             return `data?['${fieldName}'] as GeoPoint${isOptional ? '?' : ''}`;
         case 'reference':
             return `data?['${fieldName}'] as DocumentReference${isOptional ? '?' : ''}`;
-        case 'array':
+        case 'array': {
             const itemType = field.arrayItemType ? firestoreToDartType(field.arrayItemType, false) : 'dynamic';
             return `(data?['${fieldName}'] as List${isOptional ? '?' : ''})${isOptional ? '?' : ''}.cast<${itemType}>()`;
-        case 'map':
+        }
+        case 'map': {
             const valueType = field.mapValueType ? firestoreToDartType(field.mapValueType, false) : 'dynamic';
             return `(data?['${fieldName}'] as Map<String, dynamic>${isOptional ? '?' : ''})${isOptional ? '?' : ''}.cast<String, ${valueType}>()`;
+        }
         default:
             return `data?['${fieldName}']`;
     }
@@ -501,7 +505,7 @@ export function toSnakeCase(str: string): string {
         .replace(/[^a-z0-9_]/g, '');
 }
 
-export function getDefaultValueForPreset(preset: string | undefined, _fieldType: FirestoreFieldType): string {
+export function getDefaultValueForPreset(preset: string | undefined): string {
     if (!preset || preset === 'none' || preset === 'custom') {
         return '';
     }

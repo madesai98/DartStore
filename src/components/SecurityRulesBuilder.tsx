@@ -777,7 +777,7 @@ function SecurityConditionRow({ condition, collection, onUpdate, onDelete }: Sec
                             onChange={(e) => onUpdate({ ownerField: e.target.value })}
                             className="px-2.5 py-1.5 bg-white/[0.06] border-0 rounded-lg text-white/70 text-sm focus:ring-1 focus:ring-amber-500/30 transition-all min-w-[120px]"
                         >
-                            <option value="">Select field...</option>
+                            <option value="">Select field…</option>
                             {collection.fields.map(f => (
                                 <option key={f.id} value={f.name}>{f.name}</option>
                             ))}

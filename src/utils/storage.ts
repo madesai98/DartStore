@@ -133,7 +133,7 @@ export function importProject(file: File): Promise<FirestoreProject> {
                 }
 
                 resolve(normalizeProject(project));
-            } catch (error) {
+            } catch {
                 reject(new Error('Failed to parse project file'));
             }
         };

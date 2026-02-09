@@ -123,7 +123,7 @@ export default function CollectionEditor({
                                 value={tempDesc}
                                 onChange={(e) => setTempDesc(e.target.value)}
                                 className="flex-1 px-3 py-1 bg-white/[0.06] border-0 rounded-lg text-white/60 placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-violet-500/30"
-                                placeholder="Add a description..."
+                                placeholder="Add a description…"
                                 autoFocus
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') handleSaveDesc();

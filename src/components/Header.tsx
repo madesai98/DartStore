@@ -39,9 +39,15 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
     useEffect(() => { if (editingName) nameRef.current?.focus(); }, [editingName]);
     useEffect(() => { if (editingDesc) descRef.current?.focus(); }, [editingDesc]);
 
-    // Sync with external project prop changes
-    useEffect(() => { setNameValue(project.name); }, [project.name]);
-    useEffect(() => { setDescValue(project.description ?? ''); }, [project.description]);
+    // Reset local state when starting to edit (always start with latest prop value)
+    const startEditingName = () => {
+        setNameValue(project.name);
+        setEditingName(true);
+    };
+    const startEditingDesc = () => {
+        setDescValue(project.description ?? '');
+        setEditingDesc(true);
+    };
 
     const commitName = () => {
         const trimmed = nameValue.trim();
@@ -77,7 +83,7 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
             if (confirm('This will replace your current project. Continue?')) {
                 onUpdateProject(importedProject);
             }
-        } catch (error) {
+        } catch {
             alert('Failed to import project. Please check the file format.');
         }
         e.target.value = '';
@@ -112,7 +118,7 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
                         </form>
                     ) : (
                         <button
-                            onClick={() => setEditingName(true)}
+                            onClick={() => startEditingName()}
                             className="relative flex items-center gap-1.5 max-w-full text-base font-semibold text-white/90 tracking-tight hover:text-white transition-colors group/name"
                         >
                             <span className="truncate">{project.name}</span>
@@ -139,7 +145,7 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
                         </form>
                     ) : (
                         <button
-                            onClick={() => setEditingDesc(true)}
+                            onClick={() => startEditingDesc()}
                             className="relative text-xs text-white/30 hover:text-white/50 transition-colors cursor-pointer mt-0.5 block max-w-full truncate text-left group/desc"
                         >
                             {project.description || 'Add description…'}
@@ -156,10 +162,12 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
                 <div className="flex-1" />
 
                 {/* View Tabs — collapse labels on small screens */}
-                <div className="flex items-center bg-white/[0.04] rounded-lg overflow-hidden shrink-0">
+                <div className="flex items-center bg-white/[0.04] rounded-lg overflow-hidden shrink-0" role="tablist">
                     {tabs.map(tab => (
                         <button
                             key={tab.view}
+                            role="tab"
+                            aria-selected={activeView === tab.view}
                             onClick={() => onChangeView(tab.view)}
                             className={`flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${activeView === tab.view
                                 ? tab.activeClass
@@ -230,6 +238,8 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
                     <button
                         onClick={() => setMenuOpen(!menuOpen)}
                         className="p-2 text-white/50 hover:text-white/80 hover:bg-white/[0.06] rounded-lg transition-all"
+                        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+                        aria-expanded={menuOpen}
                     >
                         {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                     </button>
