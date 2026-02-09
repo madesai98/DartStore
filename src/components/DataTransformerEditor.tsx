@@ -850,12 +850,14 @@ function FlowEditorInner({ collection, direction, config, onConfigChange }: Flow
         const pending = pendingConnectionRef.current;
         if (!pending) return;
 
-        // Check if the drop target is the canvas pane (empty space), not a handle or node
+        // Check if the drop target is empty canvas space (not a handle or node)
         const target = event.target as HTMLElement;
+        const isOnHandle = target.closest('.react-flow__handle') !== null;
+        const isOnNode = target.closest('.react-flow__node') !== null;
         const isPane = target.closest('.react-flow__pane') !== null;
-        // If connected to a valid target, onConnect will fire and we shouldn't open the palette
-        // We detect "dropped on nothing" by checking if target is the pane background
-        if (isPane) {
+        // Only open the palette if we dropped on genuinely empty pane space
+        // If dropped on a handle/node, onConnect will fire separately to make the connection
+        if (isPane && !isOnHandle && !isOnNode) {
             setShowPalette(true);
         } else {
             pendingConnectionRef.current = null;
