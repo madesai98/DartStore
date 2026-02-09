@@ -378,7 +378,7 @@ export function getAvailablePresetsForType(fieldType: FirestoreFieldType): Defau
 
 function generateValidateMethod(collection: FirestoreCollection): string {
     const rules = collection.validationRules;
-    if (!rules || !rules.enabled) return '';
+    if (!rules || !rules.clientEnabled) return '';
 
     const rootGroup = rules.rootGroup;
     if (rootGroup.conditions.length === 0 && rootGroup.groups.length === 0) return '';

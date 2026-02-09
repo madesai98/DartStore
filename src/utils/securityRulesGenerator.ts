@@ -1,12 +1,15 @@
 import type {
     FirestoreProject,
     FirestoreCollection,
+    FirestoreField,
     ProjectSecurityRules,
     CollectionSecurityRules,
     SecurityRule,
     SecurityConditionGroup,
     SecurityCondition,
     SecurityRuleOperation,
+    ValidationGroup,
+    ValidationCondition,
 } from '../types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -151,11 +154,17 @@ function generateGroupExpression(group: SecurityConditionGroup): string | null {
 
 // ─── Rule Line Generation ───────────────────────────────────────────────────────
 
-function generateRuleLine(rule: SecurityRule, baseIndent: number): string | null {
+function generateRuleLine(rule: SecurityRule, baseIndent: number, hasValidation: boolean = false): string | null {
     if (!rule.enabled || rule.operations.length === 0) return null;
 
     const ops = groupOperations(rule.operations);
     const expression = generateGroupExpression(rule.conditionGroup);
+
+    // Determine if validation should be appended (only for write operations)
+    const isWriteOp = rule.operations.some(op =>
+        op === 'write' || op === 'create' || op === 'update'
+    );
+    const appendValidation = hasValidation && isWriteOp;
 
     const lines: string[] = [];
 
@@ -163,11 +172,154 @@ function generateRuleLine(rule: SecurityRule, baseIndent: number): string | null
         lines.push(`${indent(baseIndent)}// ${rule.description}`);
     }
 
-    if (expression) {
+    if (expression && appendValidation) {
+        lines.push(`${indent(baseIndent)}allow ${ops}: if ${expression} && isValid();`);
+    } else if (expression) {
         lines.push(`${indent(baseIndent)}allow ${ops}: if ${expression};`);
+    } else if (appendValidation) {
+        lines.push(`${indent(baseIndent)}allow ${ops}: if isValid();`);
     } else {
         lines.push(`${indent(baseIndent)}allow ${ops}: if true;`);
     }
+
+    return lines.join('\n');
+}
+
+// ─── Validation Rules → Security Rules ──────────────────────────────────────────
+
+function generateValidationConditionExpression(
+    condition: ValidationCondition,
+    fields: FirestoreField[]
+): string | null {
+    if (!condition.enabled) return null;
+
+    const field = fields.find((f) => f.id === condition.fieldId);
+    if (!field) return null;
+
+    const name = field.name;
+    const data = `request.resource.data.${name}`;
+    const val = condition.value;
+    const val2 = condition.secondaryValue ?? '';
+
+    switch (field.type) {
+        case 'string': {
+            switch (condition.operator) {
+                case 'equals': return `${data} == '${val}'`;
+                case 'notEquals': return `${data} != '${val}'`;
+                case 'contains': return `${data}.matches('.*${val}.*')`;
+                case 'startsWith': return `${data}.matches('^${val}.*')`;
+                case 'endsWith': return `${data}.matches('.*${val}$')`;
+                case 'matches': return `${data}.matches('${val}')`;
+                case 'isEmpty': return `${data}.size() == 0`;
+                case 'isNotEmpty': return `${data}.size() > 0`;
+                case 'minLength': return `${data}.size() >= ${val}`;
+                case 'maxLength': return `${data}.size() <= ${val}`;
+                default: return null;
+            }
+        }
+        case 'number': {
+            switch (condition.operator) {
+                case 'equals': return `${data} == ${val}`;
+                case 'notEquals': return `${data} != ${val}`;
+                case 'greaterThan': return `${data} > ${val}`;
+                case 'greaterThanOrEqual': return `${data} >= ${val}`;
+                case 'lessThan': return `${data} < ${val}`;
+                case 'lessThanOrEqual': return `${data} <= ${val}`;
+                case 'between': return `${data} >= ${val} && ${data} <= ${val2}`;
+                default: return null;
+            }
+        }
+        case 'boolean': {
+            switch (condition.operator) {
+                case 'equals': return `${data} == ${val}`;
+                case 'notEquals': return `${data} != ${val}`;
+                default: return null;
+            }
+        }
+        case 'timestamp': {
+            switch (condition.operator) {
+                case 'before': return `${data} < timestamp.date(${val.replace(/-/g, ', ')})`;
+                case 'after': return `${data} > timestamp.date(${val.replace(/-/g, ', ')})`;
+                case 'between': return `${data} > timestamp.date(${val.replace(/-/g, ', ')}) && ${data} < timestamp.date(${val2.replace(/-/g, ', ')})`;
+                case 'equals': return `${data} == timestamp.date(${val.replace(/-/g, ', ')})`;
+                case 'notEquals': return `${data} != timestamp.date(${val.replace(/-/g, ', ')})`;
+                default: return null;
+            }
+        }
+        case 'array': {
+            switch (condition.operator) {
+                case 'isEmpty': return `${data}.size() == 0`;
+                case 'isNotEmpty': return `${data}.size() > 0`;
+                case 'minLength': return `${data}.size() >= ${val}`;
+                case 'maxLength': return `${data}.size() <= ${val}`;
+                case 'contains': return `${val} in ${data}`;
+                default: return null;
+            }
+        }
+        case 'map': {
+            switch (condition.operator) {
+                case 'isEmpty': return `${data}.size() == 0`;
+                case 'isNotEmpty': return `${data}.size() > 0`;
+                case 'hasKey': return `'${val}' in ${data}`;
+                case 'minLength': return `${data}.size() >= ${val}`;
+                case 'maxLength': return `${data}.size() <= ${val}`;
+                default: return null;
+            }
+        }
+        case 'reference': {
+            switch (condition.operator) {
+                case 'isNull': return `${data} == null`;
+                case 'isNotNull': return `${data} != null`;
+                default: return null;
+            }
+        }
+        default: return null;
+    }
+}
+
+function generateValidationGroupExpression(
+    group: ValidationGroup,
+    fields: FirestoreField[]
+): string | null {
+    if (!group.enabled) return null;
+
+    const parts: string[] = [];
+
+    for (const condition of group.conditions) {
+        const expr = generateValidationConditionExpression(condition, fields);
+        if (expr) parts.push(expr);
+    }
+
+    for (const subGroup of group.groups) {
+        const subExpr = generateValidationGroupExpression(subGroup, fields);
+        if (subExpr) parts.push(`(${subExpr})`);
+    }
+
+    if (parts.length === 0) return null;
+    if (parts.length === 1) return parts[0];
+
+    const joiner = group.type === 'AND' ? ' && ' : ' || ';
+    return parts.join(joiner);
+}
+
+function generateValidationFunction(
+    collection: FirestoreCollection,
+    baseIndent: number
+): string | null {
+    const rules = collection.validationRules;
+    if (!rules || !rules.serverEnabled) return null;
+
+    const rootGroup = rules.rootGroup;
+    if (rootGroup.conditions.length === 0 && rootGroup.groups.length === 0) return null;
+
+    const expression = generateValidationGroupExpression(rootGroup, collection.fields);
+    if (!expression) return null;
+
+    const lines: string[] = [];
+    lines.push(`${indent(baseIndent)}// Server-side validation rules`);
+    lines.push(`${indent(baseIndent)}function isValid() {`);
+    lines.push(`${indent(baseIndent + 1)}return ${expression};`);
+    lines.push(`${indent(baseIndent)}}`);
 
     return lines.join('\n');
 }
@@ -193,7 +345,7 @@ function flattenCollections(collections: FirestoreCollection[], parentPath: stri
 }
 
 function generateCollectionBlock(
-    _collection: FirestoreCollection,
+    collection: FirestoreCollection,
     path: string,
     collectionRules: CollectionSecurityRules | undefined,
     baseIndent: number
@@ -202,13 +354,20 @@ function generateCollectionBlock(
 
     lines.push(`${indent(baseIndent)}match ${path} {`);
 
+    // Generate validation function if server-side validation is enabled
+    const validationFn = generateValidationFunction(collection, baseIndent + 1);
+    if (validationFn) {
+        lines.push(validationFn);
+        lines.push('');
+    }
+
     if (!collectionRules || !collectionRules.enabled || collectionRules.rules.length === 0) {
         lines.push(`${indent(baseIndent + 1)}// No rules defined — access denied by default`);
     } else {
         const enabledRules = collectionRules.rules.filter(r => r.enabled);
 
         for (const rule of enabledRules) {
-            const ruleLine = generateRuleLine(rule, baseIndent + 1);
+            const ruleLine = generateRuleLine(rule, baseIndent + 1, validationFn !== null);
             if (ruleLine) {
                 lines.push(ruleLine);
             }

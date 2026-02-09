@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Plus, Trash2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, GitBranch } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, GitBranch, Monitor, Server } from 'lucide-react';
 import type {
     FirestoreField,
     FirestoreFieldType,
@@ -73,7 +73,8 @@ function createEmptyGroup(): ValidationGroup {
 
 export function createDefaultValidationRules(): ValidationRules {
     return {
-        enabled: false,
+        clientEnabled: false,
+        serverEnabled: false,
         rootGroup: {
             id: generateId(),
             type: 'AND',
@@ -119,12 +120,19 @@ interface ValidationRuleBuilderProps {
 
 export default function ValidationRuleBuilder({ fields, validationRules, onChange }: ValidationRuleBuilderProps) {
     const rules = validationRules ?? createDefaultValidationRules();
-    const [expandedSection, setExpandedSection] = useState(rules.enabled);
+    const isAnyEnabled = rules.clientEnabled || rules.serverEnabled;
+    const [expandedSection, setExpandedSection] = useState(isAnyEnabled);
 
-    const handleToggleEnabled = () => {
-        const updated = { ...rules, enabled: !rules.enabled };
+    const handleToggleClient = () => {
+        const updated = { ...rules, clientEnabled: !rules.clientEnabled };
         onChange(updated);
-        setExpandedSection(!rules.enabled);
+        if (!rules.clientEnabled) setExpandedSection(true);
+    };
+
+    const handleToggleServer = () => {
+        const updated = { ...rules, serverEnabled: !rules.serverEnabled };
+        onChange(updated);
+        if (!rules.serverEnabled) setExpandedSection(true);
     };
 
     const handleUpdateRoot = (rootGroup: ValidationGroup) => {
@@ -154,25 +162,45 @@ export default function ValidationRuleBuilder({ fields, validationRules, onChang
                         </span>
                     )}
                 </button>
-                <button
-                    onClick={handleToggleEnabled}
-                    className="flex items-center gap-1.5 text-sm transition-colors"
-                    title={rules.enabled ? 'Disable validation' : 'Enable validation'}
-                >
-                    {rules.enabled ? (
-                        <ToggleRight className="w-5 h-5 text-violet-400" />
-                    ) : (
-                        <ToggleLeft className="w-5 h-5 text-white/20" />
-                    )}
-                    <span className={rules.enabled ? 'text-violet-300/70' : 'text-white/20'}>
-                        {rules.enabled ? 'Active' : 'Inactive'}
-                    </span>
-                </button>
+                <div className="flex items-center gap-3">
+                    {/* Client-side validation toggle */}
+                    <button
+                        onClick={handleToggleClient}
+                        className="flex items-center gap-1.5 text-sm transition-colors"
+                        title={rules.clientEnabled ? 'Disable client-side validation (Dart)' : 'Enable client-side validation (Dart)'}
+                    >
+                        <Monitor className="w-3.5 h-3.5 text-white/30" />
+                        {rules.clientEnabled ? (
+                            <ToggleRight className="w-5 h-5 text-violet-400" />
+                        ) : (
+                            <ToggleLeft className="w-5 h-5 text-white/20" />
+                        )}
+                        <span className={rules.clientEnabled ? 'text-violet-300/70' : 'text-white/20'}>
+                            Client
+                        </span>
+                    </button>
+                    {/* Server-side validation toggle */}
+                    <button
+                        onClick={handleToggleServer}
+                        className="flex items-center gap-1.5 text-sm transition-colors"
+                        title={rules.serverEnabled ? 'Disable server-side validation (Security Rules)' : 'Enable server-side validation (Security Rules)'}
+                    >
+                        <Server className="w-3.5 h-3.5 text-white/30" />
+                        {rules.serverEnabled ? (
+                            <ToggleRight className="w-5 h-5 text-emerald-400" />
+                        ) : (
+                            <ToggleLeft className="w-5 h-5 text-white/20" />
+                        )}
+                        <span className={rules.serverEnabled ? 'text-emerald-300/70' : 'text-white/20'}>
+                            Server
+                        </span>
+                    </button>
+                </div>
             </div>
 
             {/* Builder */}
             {expandedSection && (
-                <div className={`transition-opacity duration-200 ${rules.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                <div className={`transition-opacity duration-200 ${isAnyEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
                     <GroupNode
                         group={rules.rootGroup}
                         fields={fields}

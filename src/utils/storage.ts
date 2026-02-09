@@ -17,8 +17,13 @@ function normalizeValidationGroup(group: ValidationGroup): ValidationGroup {
 
 function normalizeValidationRules(rules: ValidationRules | undefined): ValidationRules | undefined {
     if (!rules) return undefined;
+    // Migrate from old single 'enabled' field to dual switches
+    const migrated = rules as ValidationRules & { enabled?: boolean };
+    const clientEnabled = rules.clientEnabled ?? migrated.enabled ?? false;
+    const serverEnabled = rules.serverEnabled ?? false;
     return {
-        ...rules,
+        clientEnabled,
+        serverEnabled,
         rootGroup: normalizeValidationGroup(rules.rootGroup),
     };
 }

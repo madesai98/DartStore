@@ -99,7 +99,8 @@ export interface ValidationGroup {
 }
 
 export interface ValidationRules {
-    enabled: boolean;
+    clientEnabled: boolean;
+    serverEnabled: boolean;
     rootGroup: ValidationGroup;
 }
 

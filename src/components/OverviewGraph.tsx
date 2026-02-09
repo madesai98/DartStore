@@ -20,7 +20,7 @@ import dagre from 'dagre';
 import {
     Shield, ShieldCheck, CheckCircle2,
     Type, Hash, ToggleLeft, Clock, MapPin, Link2, List, Braces, Ban,
-    Info, X,
+    Info, X, Monitor, Server,
 } from 'lucide-react';
 import type {
     FirestoreCollection,
@@ -84,7 +84,7 @@ const HighlightContext = createContext<HighlightCtx>({
 // ─── Validation Helpers ─────────────────────────────────────────────────────────
 
 function getFieldValidations(fieldId: string, rules: ValidationRules | undefined, fields: FirestoreField[]): string[] {
-    if (!rules || !rules.enabled) return [];
+    if (!rules || (!rules.clientEnabled && !rules.serverEnabled)) return [];
     return collectConditionsForField(rules.rootGroup, fieldId, fields);
 }
 
@@ -487,7 +487,8 @@ const CollectionNode = memo(({ data }: NodeProps<Node<CollectionNodeData>>) => {
     const isRoot = depth === 0;
     const collRules = securityRules.collectionRules[collection.id];
     const hasSecurityRules = collRules && collRules.enabled && collRules.rules.some(r => r.enabled);
-    const hasValidation = collection.validationRules?.enabled && collection.fields.length > 0;
+    const hasClientValidation = collection.validationRules?.clientEnabled && collection.fields.length > 0;
+    const hasServerValidation = collection.validationRules?.serverEnabled && collection.fields.length > 0;
 
     const headerH = depth > 0 ? NODE_HEADER_HEIGHT_WITH_PATH : NODE_HEADER_HEIGHT;
     const headerCenterY = headerH / 2;
@@ -605,7 +606,16 @@ const CollectionNode = memo(({ data }: NodeProps<Node<CollectionNodeData>>) => {
                     </div>
                     <div className="flex items-center gap-1">
                         {hasSecurityRules && <ShieldCheck className="w-3.5 h-3.5 text-amber-400/70" />}
-                        {hasValidation && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400/70" />}
+                        {hasClientValidation && (
+                            <span className="flex items-center" title="Client-side validation (Dart)">
+                                <Monitor className="w-3.5 h-3.5 text-violet-400/70" />
+                            </span>
+                        )}
+                        {hasServerValidation && (
+                            <span className="flex items-center" title="Server-side validation (Security Rules)">
+                                <Server className="w-3.5 h-3.5 text-emerald-400/70" />
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -946,7 +956,8 @@ function OverviewGraphInner({
                         <span className="text-[11px] text-white/40">Reference</span>
                     </div>
                     <div className="flex items-center gap-1.5"><ShieldCheck className="w-3 h-3 text-amber-400" /><span className="text-[11px] text-white/40">Security Rules</span></div>
-                    <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-emerald-400" /><span className="text-[11px] text-white/40">Validation</span></div>
+                    <div className="flex items-center gap-1.5"><Monitor className="w-3 h-3 text-violet-400" /><span className="text-[11px] text-white/40">Client Validation</span></div>
+                    <div className="flex items-center gap-1.5"><Server className="w-3 h-3 text-emerald-400" /><span className="text-[11px] text-white/40">Server Validation</span></div>
                     <button onClick={() => setLegendOpen(false)} className="ml-1 p-0.5 text-white/20 hover:text-white/50 transition-colors rounded">
                         <X className="w-3 h-3" />
                     </button>
