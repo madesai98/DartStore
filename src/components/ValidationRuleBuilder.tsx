@@ -327,8 +327,8 @@ function GroupNode({ group, fields, depth, isRoot, parentDisabled, onUpdate, onD
                     <button
                         onClick={() => handleToggleType('AND')}
                         className={`px-3 py-1 text-xs font-bold tracking-wide transition-all ${group.type === 'AND'
-                                ? 'bg-violet-500/80 text-white'
-                                : 'text-white/30 hover:text-white/50 hover:bg-white/[0.04]'
+                            ? 'bg-violet-500/80 text-white'
+                            : 'text-white/30 hover:text-white/50 hover:bg-white/[0.04]'
                             }`}
                     >
                         AND
@@ -336,8 +336,8 @@ function GroupNode({ group, fields, depth, isRoot, parentDisabled, onUpdate, onD
                     <button
                         onClick={() => handleToggleType('OR')}
                         className={`px-3 py-1 text-xs font-bold tracking-wide transition-all ${group.type === 'OR'
-                                ? 'bg-violet-500/80 text-white'
-                                : 'text-white/30 hover:text-white/50 hover:bg-white/[0.04]'
+                            ? 'bg-violet-500/80 text-white'
+                            : 'text-white/30 hover:text-white/50 hover:bg-white/[0.04]'
                             }`}
                     >
                         OR
