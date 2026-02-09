@@ -108,29 +108,29 @@ export default function WelcomeScreen({ onCreateProject, onLoadProject, onJoinSe
 
     return (
         <div className="h-screen flex items-center justify-center relative overflow-hidden">
-            <div className="text-center max-w-2xl px-6 relative z-10">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-violet-500/20 rounded-2xl mb-8">
-                    <Database className="w-10 h-10 text-violet-300" />
+            <div className="text-center max-w-2xl px-4 sm:px-6 relative z-10">
+                <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-violet-500/20 rounded-2xl mb-6 sm:mb-8">
+                    <Database className="w-8 h-8 sm:w-10 sm:h-10 text-violet-300" />
                 </div>
 
-                <h1 className="text-5xl font-bold text-white/90 mb-4 tracking-tight">
+                <h1 className="text-3xl sm:text-5xl font-bold text-white/90 mb-3 sm:mb-4 tracking-tight">
                     DartStore
                 </h1>
 
-                <p className="text-xl text-white/30 mb-12 leading-relaxed">
+                <p className="text-lg sm:text-xl text-white/30 mb-8 sm:mb-12 leading-relaxed">
                     Model your Firestore database and generate type-safe Dart code for Flutter
                 </p>
 
-                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-stretch sm:items-center">
                     <button
                         onClick={() => setShowNewProject(true)}
-                        className="group flex items-center gap-3 px-8 py-4 bg-violet-500/80 text-white rounded-xl hover:bg-violet-500 transition-all duration-300 transform hover:-translate-y-0.5"
+                        className="group flex items-center justify-center gap-3 px-6 sm:px-8 py-3.5 sm:py-4 bg-violet-500/80 text-white rounded-xl hover:bg-violet-500 transition-all duration-300 transform hover:-translate-y-0.5"
                     >
                         <Sparkles className="w-5 h-5" />
                         <span className="font-semibold">Create New Project</span>
                     </button>
 
-                    <label className="group flex items-center gap-3 px-8 py-4 bg-white/[0.04] text-white/50 rounded-xl hover:bg-white/[0.07] transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer">
+                    <label className="group flex items-center justify-center gap-3 px-6 sm:px-8 py-3.5 sm:py-4 bg-white/[0.04] text-white/50 rounded-xl hover:bg-white/[0.07] transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer">
                         <Upload className="w-5 h-5" />
                         <span className="font-semibold">Import Project</span>
                         <input

@@ -91,7 +91,24 @@ function App() {
   const [securityRules, setSecurityRules] = useState<ProjectSecurityRules>(createDefaultProjectSecurityRules());
   const [isGuest, setIsGuest] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [transformConfig, setTransformConfig] = useState<ProjectTransformConfig>(createDefaultProjectTransformConfig());
+
+  // Detect mobile breakpoint for sidebar overlay
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 767px)');
+    setIsMobile(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
+  // Auto-close mobile sidebar when selecting a collection
+  const handleSelectCollection = useCallback((id: string) => {
+    setSelectedCollectionId(id);
+    if (isMobile) setMobileSidebarOpen(false);
+  }, [isMobile]);
 
   // ─── Collaboration ──────────────────────────────────────────────────────────
   const handleRemoteStateSync = useCallback((state: SyncedAppState) => {
@@ -439,89 +456,114 @@ function App() {
         onChangeView={setActiveView}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        {activeView === 'editor' ? (
-          <Sidebar
-            collections={project.collections}
-            selectedCollectionId={selectedCollectionId}
-            onSelectCollection={setSelectedCollectionId}
-            onAddCollection={handleAddCollection}
-            onAddSubcollection={handleAddSubcollection}
-            onDeleteCollection={handleDeleteCollection}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed(c => !c)}
-            collaboration={{
-              status: collab.status,
-              sessionId: collab.sessionId,
-              localUser: collab.localUser,
-              peers: collab.peers,
-              onHost: collab.hostSession,
-              onDisconnect: handleGuestDisconnect,
-              onJumpToUser: handleJumpToUser,
-            }}
-          />
-        ) : activeView === 'security-rules' ? (
-          <Sidebar
-            collections={project.collections}
-            selectedCollectionId={selectedCollectionId}
-            onSelectCollection={setSelectedCollectionId}
-            readOnly
-            title="Collections"
-            mode="security-rules"
-            securityRules={securityRules}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed(c => !c)}
-            collaboration={{
-              status: collab.status,
-              sessionId: collab.sessionId,
-              localUser: collab.localUser,
-              peers: collab.peers,
-              onHost: collab.hostSession,
-              onDisconnect: handleGuestDisconnect,
-              onJumpToUser: handleJumpToUser,
-            }}
-          />
-        ) : activeView === 'data-transformer' ? (
-          <Sidebar
-            collections={project.collections}
-            selectedCollectionId={selectedCollectionId}
-            onSelectCollection={setSelectedCollectionId}
-            readOnly
-            title="Collections"
-            mode="data-transformer"
-            transformConfig={transformConfig}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed(c => !c)}
-            collaboration={{
-              status: collab.status,
-              sessionId: collab.sessionId,
-              localUser: collab.localUser,
-              peers: collab.peers,
-              onHost: collab.hostSession,
-              onDisconnect: handleGuestDisconnect,
-              onJumpToUser: handleJumpToUser,
-            }}
-          />
-        ) : (
-          <Sidebar
-            collections={[]}
-            selectedCollectionId={null}
-            onSelectCollection={() => { }}
-            readOnly
-            title="Overview"
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed(c => !c)}
-            collaboration={{
-              status: collab.status,
-              sessionId: collab.sessionId,
-              localUser: collab.localUser,
-              peers: collab.peers,
-              onHost: collab.hostSession,
-              onDisconnect: handleGuestDisconnect,
-              onJumpToUser: handleJumpToUser,
-            }}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile sidebar toggle button */}
+        {isMobile && !mobileSidebarOpen && (
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="fixed bottom-4 left-4 z-40 p-3 bg-violet-500/90 text-white rounded-full shadow-lg hover:bg-violet-500 transition-all duration-200"
+            aria-label="Open sidebar"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><line x1="9" x2="9" y1="3" y2="21" /></svg>
+          </button>
+        )}
+
+        {/* Mobile sidebar backdrop */}
+        {isMobile && mobileSidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            onClick={() => setMobileSidebarOpen(false)}
           />
         )}
+
+        {/* Sidebar — desktop: inline, mobile: overlay drawer */}
+        <div className={`${isMobile
+            ? `fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+            : ''
+          }`}>
+          {activeView === 'editor' ? (
+            <Sidebar
+              collections={project.collections}
+              selectedCollectionId={selectedCollectionId}
+              onSelectCollection={handleSelectCollection}
+              onAddCollection={handleAddCollection}
+              onAddSubcollection={handleAddSubcollection}
+              onDeleteCollection={handleDeleteCollection}
+              collapsed={isMobile ? false : sidebarCollapsed}
+              onToggleCollapse={() => isMobile ? setMobileSidebarOpen(false) : setSidebarCollapsed(c => !c)}
+              collaboration={{
+                status: collab.status,
+                sessionId: collab.sessionId,
+                localUser: collab.localUser,
+                peers: collab.peers,
+                onHost: collab.hostSession,
+                onDisconnect: handleGuestDisconnect,
+                onJumpToUser: handleJumpToUser,
+              }}
+            />
+          ) : activeView === 'security-rules' ? (
+            <Sidebar
+              collections={project.collections}
+              selectedCollectionId={selectedCollectionId}
+              onSelectCollection={handleSelectCollection}
+              readOnly
+              title="Collections"
+              mode="security-rules"
+              securityRules={securityRules}
+              collapsed={isMobile ? false : sidebarCollapsed}
+              onToggleCollapse={() => isMobile ? setMobileSidebarOpen(false) : setSidebarCollapsed(c => !c)}
+              collaboration={{
+                status: collab.status,
+                sessionId: collab.sessionId,
+                localUser: collab.localUser,
+                peers: collab.peers,
+                onHost: collab.hostSession,
+                onDisconnect: handleGuestDisconnect,
+                onJumpToUser: handleJumpToUser,
+              }}
+            />
+          ) : activeView === 'data-transformer' ? (
+            <Sidebar
+              collections={project.collections}
+              selectedCollectionId={selectedCollectionId}
+              onSelectCollection={handleSelectCollection}
+              readOnly
+              title="Collections"
+              mode="data-transformer"
+              transformConfig={transformConfig}
+              collapsed={isMobile ? false : sidebarCollapsed}
+              onToggleCollapse={() => isMobile ? setMobileSidebarOpen(false) : setSidebarCollapsed(c => !c)}
+              collaboration={{
+                status: collab.status,
+                sessionId: collab.sessionId,
+                localUser: collab.localUser,
+                peers: collab.peers,
+                onHost: collab.hostSession,
+                onDisconnect: handleGuestDisconnect,
+                onJumpToUser: handleJumpToUser,
+              }}
+            />
+          ) : (
+            <Sidebar
+              collections={[]}
+              selectedCollectionId={null}
+              onSelectCollection={() => { }}
+              readOnly
+              title="Overview"
+              collapsed={isMobile ? false : sidebarCollapsed}
+              onToggleCollapse={() => isMobile ? setMobileSidebarOpen(false) : setSidebarCollapsed(c => !c)}
+              collaboration={{
+                status: collab.status,
+                sessionId: collab.sessionId,
+                localUser: collab.localUser,
+                peers: collab.peers,
+                onHost: collab.hostSession,
+                onDisconnect: handleGuestDisconnect,
+                onJumpToUser: handleJumpToUser,
+              }}
+            />
+          )}
+        </div>
 
         <main className="flex-1 overflow-auto">
           {activeView === 'editor' ? (

@@ -271,7 +271,7 @@ export default function Sidebar({
     };
 
     return (
-        <nav aria-label={title} className={`bg-white/[0.02] flex flex-col transition-all duration-300 ${collapsed ? 'w-10' : 'w-64'}`}>
+        <nav aria-label={title} className={`bg-white/[0.02] flex flex-col h-full transition-all duration-300 ${collapsed ? 'w-10' : 'w-64 max-w-[85vw]'}`}>
             {/* Collapse / Expand toggle */}
             {collapsed ? (
                 <button

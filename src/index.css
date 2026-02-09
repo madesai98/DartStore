@@ -81,8 +81,49 @@ select option {
   left: 16px;
 }
 
+/* Mobile responsive helpers */
+@media (max-width: 640px) {
+
+  /* Make security & validation condition rows scrollable */
+  .condition-row-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .condition-row-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Increase touch targets on mobile */
+  button,
+  [role="button"],
+  label {
+    min-height: 36px;
+  }
+
+  /* Allow small toggle switches to keep their intrinsic size */
+  button.rounded-full {
+    min-height: auto;
+  }
+
+  /* Prevent text from being too small on mobile */
+  select,
+  input,
+  textarea {
+    font-size: 16px !important;
+    /* Prevents iOS zoom on focus */
+  }
+
+  /* Hide minimap on very small screens */
+  .react-flow__minimap {
+    display: none;
+  }
+}
+
 /* Respect reduced motion preferences */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {

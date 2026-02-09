@@ -86,11 +86,11 @@ export default function SecurityRulesBuilder({ project, securityRules, onChange,
     return (
         <div className="h-full flex flex-col">
             {/* Compact toolbar */}
-            <div className="px-6 py-3 border-b border-white/[0.04]">
-                <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+            <div className="px-4 sm:px-6 py-3 border-b border-white/[0.04]">
+                <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
                     {/* Left: version picker */}
-                    <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-white/40">Rules Version</span>
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <span className="text-sm font-medium text-white/40 hidden sm:inline">Rules Version</span>
                         <div className="flex rounded-lg overflow-hidden bg-white/[0.04]">
                             <button
                                 onClick={() => handleVersionChange('1')}
@@ -111,7 +111,7 @@ export default function SecurityRulesBuilder({ project, securityRules, onChange,
                                 v2
                             </button>
                         </div>
-                        <div className="relative group">
+                        <div className="relative group hidden sm:block">
                             <HelpCircle className="w-3.5 h-3.5 text-white/20 cursor-help" />
                             <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block w-52 px-3 py-2 rounded-lg bg-[#1a1a40]/95 border border-white/[0.08] shadow-xl text-[11px] text-white/50 z-[9999] pointer-events-none">
                                 {securityRules.firestoreVersion === '2'
@@ -122,13 +122,14 @@ export default function SecurityRulesBuilder({ project, securityRules, onChange,
                     </div>
 
                     {/* Right: preview + active toggle */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                         <button
                             onClick={onShowPreview}
-                            className="flex items-center gap-2 px-3.5 py-1.5 text-amber-300/80 hover:text-amber-200 hover:bg-white/[0.05] rounded-lg transition-all duration-200"
+                            className="flex items-center gap-2 px-3 py-1.5 text-amber-300/80 hover:text-amber-200 hover:bg-white/[0.05] rounded-lg transition-all duration-200"
+                            title="Preview Rules"
                         >
                             <Eye className="w-4 h-4" />
-                            <span className="font-medium text-sm">Preview Rules</span>
+                            <span className="font-medium text-sm hidden sm:inline">Preview Rules</span>
                         </button>
                         <button
                             onClick={handleToggleEnabled}
@@ -140,7 +141,7 @@ export default function SecurityRulesBuilder({ project, securityRules, onChange,
                             ) : (
                                 <ToggleLeft className="w-5 h-5 text-white/20" />
                             )}
-                            <span className={securityRules.enabled ? 'text-amber-300/70' : 'text-white/20'}>
+                            <span className={`hidden sm:inline ${securityRules.enabled ? 'text-amber-300/70' : 'text-white/20'}`}>
                                 {securityRules.enabled ? 'Active' : 'Inactive'}
                             </span>
                         </button>
@@ -149,7 +150,7 @@ export default function SecurityRulesBuilder({ project, securityRules, onChange,
             </div>
 
             {/* Body */}
-            <div className={`flex-1 overflow-y-auto p-6 transition-opacity duration-200 ${securityRules.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+            <div className={`flex-1 overflow-y-auto p-4 sm:p-6 transition-opacity duration-200 ${securityRules.enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
                 <div className="max-w-5xl mx-auto">
 
                     {allCollections.length === 0 ? (
@@ -758,7 +759,7 @@ function SecurityConditionRow({ condition, collection, onUpdate, onDelete }: Sec
             <select
                 value={condition.type}
                 onChange={(e) => handleTypeChange(e.target.value as SecurityConditionType)}
-                className="px-2.5 py-1.5 bg-white/[0.06] border-0 rounded-lg text-white/70 text-sm focus:ring-1 focus:ring-amber-500/30 transition-all min-w-[140px]"
+                className="px-2.5 py-1.5 bg-white/[0.06] border-0 rounded-lg text-white/70 text-sm focus:ring-1 focus:ring-amber-500/30 transition-all min-w-[120px] sm:min-w-[140px] shrink-0"
             >
                 {CONDITION_TYPE_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>

@@ -101,7 +101,7 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
         <header className="px-4 sm:px-6 py-3.5 bg-white/[0.03]">
             <div className="flex items-center gap-3">
                 {/* Editable name / description — constrained width with ellipsis */}
-                <div className="min-w-0 max-w-[30%] shrink group">
+                <div className="min-w-0 max-w-[40%] sm:max-w-[30%] shrink group">
                     {editingName ? (
                         <form onSubmit={(e) => { e.preventDefault(); commitName(); }} className="flex items-center gap-1">
                             <input
@@ -161,7 +161,7 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
                 {/* Spacer pushes tabs + actions to the right */}
                 <div className="flex-1" />
 
-                {/* View Tabs — collapse labels on small screens */}
+                {/* View Tabs — icons only on small screens, labels appear at md+ */}
                 <div className="flex items-center bg-white/[0.04] rounded-lg overflow-hidden shrink-0" role="tablist">
                     {tabs.map(tab => (
                         <button
@@ -169,7 +169,7 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
                             role="tab"
                             aria-selected={activeView === tab.view}
                             onClick={() => onChangeView(tab.view)}
-                            className={`flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${activeView === tab.view
+                            className={`flex items-center justify-center gap-1.5 px-2.5 py-2 md:px-3.5 md:py-2.5 text-sm font-medium transition-all duration-200 ${activeView === tab.view
                                 ? tab.activeClass
                                 : 'text-white/40 hover:text-white/60 hover:bg-white/[0.04]'
                                 }`}
@@ -182,7 +182,7 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
                 </div>
 
                 {/* Desktop actions */}
-                <div className="hidden lg:flex items-center gap-0.5 shrink-0">
+                <div className="hidden xl:flex items-center gap-0.5 shrink-0">
                     <button
                         onClick={onShowCode}
                         className="flex items-center gap-2 px-3.5 py-1.5 text-violet-300/90 hover:text-violet-200 hover:bg-white/[0.05] rounded-lg transition-all duration-200"
@@ -234,7 +234,7 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
                 </div>
 
                 {/* Mobile hamburger menu */}
-                <div className="lg:hidden relative shrink-0" ref={menuRef}>
+                <div className="xl:hidden relative shrink-0" ref={menuRef}>
                     <button
                         onClick={() => setMenuOpen(!menuOpen)}
                         className="p-2 text-white/50 hover:text-white/80 hover:bg-white/[0.06] rounded-lg transition-all"

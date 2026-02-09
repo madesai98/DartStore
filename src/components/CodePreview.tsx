@@ -88,43 +88,69 @@ export default function CodePreview({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-center justify-center z-50 p-6" role="dialog" aria-modal="true" aria-labelledby="code-preview-title" ref={dialogRef} tabIndex={-1} style={{ overscrollBehavior: 'contain' }}>
-            <div className="bg-[#1a1a3e]/95 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-end sm:items-center justify-center z-50 p-0 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="code-preview-title" ref={dialogRef} tabIndex={-1} style={{ overscrollBehavior: 'contain' }}>
+            <div className="bg-[#1a1a3e]/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-5xl h-[92vh] sm:h-[80vh] flex flex-col overflow-hidden">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4">
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <div className="min-w-0">
-                            <h2 id="code-preview-title" className="text-lg font-semibold text-white/90">View Code</h2>
-                            <p className="text-sm text-white/30 mt-0.5">
-                                Ready to use in your project
-                            </p>
-                        </div>
+                <div className="px-4 sm:px-6 py-3 sm:py-4 space-y-3">
+                    {/* Top row: title + actions + close */}
+                    <div className="flex items-center justify-between gap-3">
+                        <h2 id="code-preview-title" className="text-base sm:text-lg font-semibold text-white/90 min-w-0 truncate">View Code</h2>
 
-                        {/* Tab switcher */}
-                        <div className="flex items-center bg-white/[0.04] rounded-lg overflow-hidden ml-4" role="tablist">
+                        <div className="flex items-center gap-1 shrink-0">
+                            <button
+                                onClick={handleCopy}
+                                className="flex items-center gap-2 px-3 py-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.05] rounded-lg transition-all duration-200"
+                                title="Copy to clipboard"
+                            >
+                                {copied ? (
+                                    <Check className="w-4 h-4 text-emerald-400" />
+                                ) : (
+                                    <Copy className="w-4 h-4" />
+                                )}
+                                <span className="text-sm hidden sm:inline">{copied ? 'Copied!' : 'Copy'}</span>
+                            </button>
+                            <button
+                                onClick={handleDownload}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-violet-500/80 text-white rounded-lg hover:bg-violet-500 transition-all duration-200 text-sm"
+                            >
+                                <Download className="w-4 h-4" />
+                                <span className="hidden sm:inline">Download</span>
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className="p-2 text-white/30 hover:text-white/60 hover:bg-white/[0.05] rounded-lg transition-all duration-200 ml-1"
+                                aria-label="Close code preview"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Tab switcher row — icons only on mobile, labels on sm+ */}
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center bg-white/[0.04] rounded-lg overflow-hidden shrink-0" role="tablist">
                             {TABS.map(tab => (
                                 <button
                                     key={tab.id}
                                     role="tab"
                                     aria-selected={activeTab === tab.id}
                                     onClick={() => { setActiveTab(tab.id); setCopied(false); }}
-                                    className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all duration-200 ${activeTab === tab.id
+                                    className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 text-sm font-medium transition-all duration-200 ${activeTab === tab.id
                                         ? tab.accentClass
                                         : 'text-white/40 hover:text-white/60 hover:bg-white/[0.04]'
                                         }`}
+                                    title={tab.label}
                                 >
                                     {tab.icon}
                                     <span className="hidden sm:inline">{tab.label}</span>
                                 </button>
                             ))}
                         </div>
-                    </div>
 
-                    <div className="flex items-center gap-1">
                         {/* Endpoint name editor (only on cloud function tab) */}
                         {activeTab === 'cloud-function' && (
-                            <div className="flex items-center gap-1.5 mr-3">
-                                <span className="text-xs text-white/30">Endpoint:</span>
+                            <div className="flex items-center gap-1.5 ml-auto">
+                                <span className="text-xs text-white/30 hidden sm:inline">Endpoint:</span>
                                 {editingEndpoint ? (
                                     <form onSubmit={(e) => { e.preventDefault(); commitEndpoint(); }} className="flex items-center gap-1">
                                         <input
@@ -150,38 +176,6 @@ export default function CodePreview({
                                 )}
                             </div>
                         )}
-
-                        <button
-                            onClick={handleCopy}
-                            className="flex items-center gap-2 px-3.5 py-1.5 text-white/40 hover:text-white/70 hover:bg-white/[0.05] rounded-lg transition-all duration-200"
-                            title="Copy to clipboard"
-                        >
-                            {copied ? (
-                                <>
-                                    <Check className="w-4 h-4 text-emerald-400" />
-                                    <span className="text-emerald-400 text-sm">Copied!</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Copy className="w-4 h-4" />
-                                    <span className="text-sm">Copy</span>
-                                </>
-                            )}
-                        </button>
-                        <button
-                            onClick={handleDownload}
-                            className="flex items-center gap-2 px-3.5 py-1.5 bg-violet-500/80 text-white rounded-lg hover:bg-violet-500 transition-all duration-200 text-sm"
-                        >
-                            <Download className="w-4 h-4" />
-                            <span>Download</span>
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className="p-2 text-white/30 hover:text-white/60 hover:bg-white/[0.05] rounded-lg transition-all duration-200 ml-1"
-                            aria-label="Close code preview"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
                     </div>
                 </div>
 
@@ -206,14 +200,14 @@ export default function CodePreview({
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-3 bg-white/[0.02]">
-                    <div className="flex items-center justify-between text-sm">
+                <div className="px-4 sm:px-6 py-2 sm:py-3 bg-white/[0.02]">
+                    <div className="flex items-center justify-between gap-2 text-sm">
                         <div className="text-white/30">
                             <span className="font-medium text-white/50">{currentCode.split('\n').length}</span> lines
                             <span className="mx-2 text-white/15">•</span>
                             <span className="font-medium text-white/50">{currentCode.length}</span> characters
                         </div>
-                        <div className="text-white/25">
+                        <div className="text-white/25 text-xs sm:text-sm hidden sm:block">
                             {activeTab === 'dart' && (
                                 <>Include <code className="px-2 py-0.5 bg-white/[0.05] rounded text-xs font-mono text-violet-300/70">cloud_firestore</code> in your pubspec.yaml</>
                             )}

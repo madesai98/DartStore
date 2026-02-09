@@ -995,67 +995,69 @@ export default function DataTransformerEditor({
     return (
         <div className="h-full flex flex-col">
             {/* Toolbar */}
-            <div className="px-4 py-2.5 border-b border-white/[0.04] flex items-center gap-4 flex-wrap">
-                {/* Collection name */}
-                <div className="flex items-center gap-2">
+            <div className="px-3 sm:px-4 py-2 sm:py-2.5 border-b border-white/[0.04] flex items-center gap-2 sm:gap-4">
+                {/* Collection name — hidden on very small screens to save space */}
+                <div className="hidden sm:flex items-center gap-2 shrink-0">
                     <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
-                    <span className="text-sm font-semibold text-white/80">{collection.name}</span>
+                    <span className="text-sm font-semibold text-white/80 truncate max-w-[120px]">{collection.name}</span>
                 </div>
 
-                <div className="w-px h-5 bg-white/[0.06]" />
+                <div className="hidden sm:block w-px h-5 bg-white/[0.06]" />
 
-                {/* Read / Write switcher */}
-                <div className="flex items-center bg-white/[0.04] rounded-lg overflow-hidden">
-                    <button
-                        onClick={() => setDirection('read')}
-                        className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium transition-all duration-200 ${direction === 'read'
-                            ? 'bg-emerald-500/80 text-white'
-                            : 'text-white/40 hover:text-white/60 hover:bg-white/[0.04]'
-                            }`}
-                    >
-                        <BookOpen className="w-3.5 h-3.5" />
-                        <span>Read</span>
-                    </button>
-                    <button
-                        onClick={() => setDirection('write')}
-                        className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium transition-all duration-200 ${direction === 'write'
-                            ? 'bg-orange-500/80 text-white'
-                            : 'text-white/40 hover:text-white/60 hover:bg-white/[0.04]'
-                            }`}
-                    >
-                        <Pencil className="w-3.5 h-3.5" />
-                        <span>Write</span>
-                    </button>
-                </div>
-
-                <div className="flex-1" />
-
-                {/* Client / Server toggles */}
-                <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
+                <div className="flex items-center justify-between gap-2 sm:gap-4 flex-1">
+                    {/* Read / Write switcher */}
+                    <div className="flex items-center bg-white/[0.04] rounded-lg overflow-hidden">
                         <button
-                            onClick={() => onTransformConfigChange({ ...config, clientEnabled: !config.clientEnabled })}
-                            className={`w-8 h-4.5 rounded-full transition-colors duration-200 relative ${config.clientEnabled ? 'bg-violet-500' : 'bg-white/[0.1]'
+                            onClick={() => setDirection('read')}
+                            className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium transition-all duration-200 ${direction === 'read'
+                                ? 'bg-emerald-500/80 text-white'
+                                : 'text-white/40 hover:text-white/60 hover:bg-white/[0.04]'
                                 }`}
                         >
-                            <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform duration-200 ${config.clientEnabled ? 'translate-x-4' : 'translate-x-0.5'
-                                }`} />
+                            <BookOpen className="w-3.5 h-3.5" />
+                            <span>Read</span>
                         </button>
-                        <Monitor className="w-3.5 h-3.5 text-violet-400/70" />
-                        <span className="text-xs text-white/50">Client</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
                         <button
-                            onClick={() => onTransformConfigChange({ ...config, serverEnabled: !config.serverEnabled })}
-                            className={`w-8 h-4.5 rounded-full transition-colors duration-200 relative ${config.serverEnabled ? 'bg-emerald-500' : 'bg-white/[0.1]'
+                            onClick={() => setDirection('write')}
+                            className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium transition-all duration-200 ${direction === 'write'
+                                ? 'bg-orange-500/80 text-white'
+                                : 'text-white/40 hover:text-white/60 hover:bg-white/[0.04]'
                                 }`}
                         >
-                            <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform duration-200 ${config.serverEnabled ? 'translate-x-4' : 'translate-x-0.5'
-                                }`} />
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>Write</span>
                         </button>
-                        <Server className="w-3.5 h-3.5 text-emerald-400/70" />
-                        <span className="text-xs text-white/50">Server</span>
-                    </label>
+                    </div>
+
+                    <div className="flex-1" />
+
+                    {/* Client / Server toggles */}
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                            <button
+                                onClick={() => onTransformConfigChange({ ...config, clientEnabled: !config.clientEnabled })}
+                                className={`w-8 h-[18px] shrink-0 rounded-full transition-colors duration-200 relative ${config.clientEnabled ? 'bg-violet-500' : 'bg-white/[0.1]'
+                                    }`}
+                            >
+                                <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform duration-200 ${config.clientEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                                    }`} />
+                            </button>
+                            <Monitor className="w-3.5 h-3.5 text-violet-400/70" />
+                            <span className="text-xs text-white/50 hidden sm:inline">Client</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                            <button
+                                onClick={() => onTransformConfigChange({ ...config, serverEnabled: !config.serverEnabled })}
+                                className={`w-8 h-[18px] shrink-0 rounded-full transition-colors duration-200 relative ${config.serverEnabled ? 'bg-emerald-500' : 'bg-white/[0.1]'
+                                    }`}
+                            >
+                                <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform duration-200 ${config.serverEnabled ? 'translate-x-4' : 'translate-x-0.5'
+                                    }`} />
+                            </button>
+                            <Server className="w-3.5 h-3.5 text-emerald-400/70" />
+                            <span className="text-xs text-white/50 hidden sm:inline">Server</span>
+                        </label>
+                    </div>
                 </div>
             </div>
 

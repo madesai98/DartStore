@@ -70,7 +70,7 @@ export default function CollectionEditor({
     return (
         <div className="h-full flex flex-col">
             {/* Collection Header */}
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
                 <div className="max-w-4xl mx-auto">
                     {editingName ? (
                         <div className="flex items-center gap-2 mb-2">
@@ -166,7 +166,7 @@ export default function CollectionEditor({
             </div>
 
             {/* Fields List */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                 <div className="max-w-4xl mx-auto">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-white/70">Fields</h3>
@@ -274,8 +274,8 @@ function NewFieldForm({ allCollections, onAdd, onCancel }: NewFieldFormProps) {
     const availablePresets = getAvailablePresetsForType(type);
 
     return (
-        <form onSubmit={handleSubmit} className="bg-white/[0.04] rounded-2xl p-5 mb-4">
-            <div className="grid grid-cols-2 gap-4 mb-3">
+        <form onSubmit={handleSubmit} className="bg-white/[0.04] rounded-2xl p-4 sm:p-5 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                 <div>
                     <label className="block text-sm font-medium text-white/40 mb-1">Field Name *</label>
                     <input
@@ -418,7 +418,7 @@ function NewFieldForm({ allCollections, onAdd, onCancel }: NewFieldFormProps) {
             </div>
 
             {/* Field Visibility */}
-            <div className="flex gap-4 mb-3 items-center">
+            <div className="flex flex-wrap gap-3 sm:gap-4 mb-3 items-center">
                 <span className="text-sm font-medium text-white/40">Visibility:</span>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -476,8 +476,8 @@ function FieldRow({ field, allCollections, isEditing, onEdit, onSave, onCancel, 
 
     if (isEditing) {
         return (
-            <div className="bg-white/[0.04] rounded-2xl p-5">
-                <div className="grid grid-cols-2 gap-4 mb-3">
+            <div className="bg-white/[0.04] rounded-2xl p-4 sm:p-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                     <div>
                         <label className="block text-sm font-medium text-white/40 mb-1">Field Name</label>
                         <input
@@ -588,7 +588,7 @@ function FieldRow({ field, allCollections, isEditing, onEdit, onSave, onCancel, 
                 </div>
 
                 {/* Field Visibility */}
-                <div className="flex gap-4 mb-3 items-center">
+                <div className="flex flex-wrap gap-3 sm:gap-4 mb-3 items-center">
                     <span className="text-sm font-medium text-white/40">Visibility:</span>
                     <label className="flex items-center gap-1.5 cursor-pointer">
                         <input
@@ -650,10 +650,10 @@ function FieldRow({ field, allCollections, isEditing, onEdit, onSave, onCancel, 
     }
 
     return (
-        <div className="bg-white/[0.03] rounded-xl p-4 hover:bg-white/[0.05] transition-all duration-200 group">
-            <div className="flex items-start justify-between">
-                <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+        <div className="bg-white/[0.03] rounded-xl p-3 sm:p-4 hover:bg-white/[0.05] transition-all duration-200 group">
+            <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="font-mono font-medium text-white/80">{field.name}</span>
                         <span className="px-2 py-0.5 text-xs font-medium bg-white/[0.06] text-violet-300/70 rounded-md">
                             {field.type}
