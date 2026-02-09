@@ -28,6 +28,7 @@ interface CollaborationPanelProps {
 const VIEW_LABELS: Record<AppView, string> = {
     'editor': 'Editor',
     'security-rules': 'Security Rules',
+    'data-transformer': 'Transforms',
     'overview': 'Overview',
 };
 

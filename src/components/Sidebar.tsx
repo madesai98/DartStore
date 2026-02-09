@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2, FolderOpen, ShieldCheck, ShieldX, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import type { FirestoreCollection, ProjectSecurityRules, CollectionSecurityRules } from '../types';
+import { Plus, Trash2, FolderOpen, ShieldCheck, ShieldX, PanelLeftClose, PanelLeftOpen, Workflow } from 'lucide-react';
+import type { FirestoreCollection, ProjectSecurityRules, CollectionSecurityRules, ProjectTransformConfig } from '../types';
 import type { PeerUser, SessionStatus } from '../types/collaboration';
 import { generateId } from '../utils/storage';
 import CollaborationPanel from './CollaborationPanel';
@@ -15,7 +15,7 @@ interface CollaborationProps {
     onJumpToUser?: (user: PeerUser) => void;
 }
 
-type SidebarMode = 'default' | 'security-rules';
+type SidebarMode = 'default' | 'security-rules' | 'data-transformer';
 
 interface SidebarProps {
     collections: FirestoreCollection[];
@@ -29,6 +29,7 @@ interface SidebarProps {
     title?: string;
     mode?: SidebarMode;
     securityRules?: ProjectSecurityRules;
+    transformConfig?: ProjectTransformConfig;
     collapsed?: boolean;
     onToggleCollapse?: () => void;
 }
@@ -45,10 +46,12 @@ export default function Sidebar({
     title = 'Collections',
     mode = 'default',
     securityRules,
+    transformConfig,
     collapsed = false,
     onToggleCollapse,
 }: SidebarProps) {
     const isSecurityMode = mode === 'security-rules';
+    const isTransformerMode = mode === 'data-transformer';
     const [showNewCollection, setShowNewCollection] = useState(false);
     const [newCollectionName, setNewCollectionName] = useState('');
     const [newCollectionDesc, setNewCollectionDesc] = useState('');
@@ -110,10 +113,20 @@ export default function Sidebar({
         return { hasRules: ruleCount > 0, ruleCount, applyToSub: rules.applyToSubcollections };
     };
 
+    const getCollectionTransformStatus = (collectionId: string): { hasTransforms: boolean; nodeCount: number } => {
+        if (!transformConfig) return { hasTransforms: false, nodeCount: 0 };
+        const cfg = transformConfig.collectionConfigs[collectionId];
+        if (!cfg) return { hasTransforms: false, nodeCount: 0 };
+        const nodeCount = cfg.readNodes.length + cfg.writeNodes.length;
+        const hasTransforms = cfg.serverEnabled || cfg.clientEnabled;
+        return { hasTransforms, nodeCount };
+    };
+
     const renderCollectionNode = (collection: FirestoreCollection, depth: number) => {
         const isSelected = selectedCollectionId === collection.id;
         const subcollectionCount = collection.subcollections.length;
         const ruleStatus = isSecurityMode ? getCollectionRuleStatus(collection.id) : null;
+        const transformStatus = isTransformerMode ? getCollectionTransformStatus(collection.id) : null;
 
         return (
             <div key={collection.id}>
@@ -143,10 +156,18 @@ export default function Sidebar({
                                         <ShieldX className="w-3.5 h-3.5 text-white/15 flex-shrink-0" />
                                     )
                                 )}
+                                {isTransformerMode && transformStatus && (
+                                    <Workflow className={`w-3.5 h-3.5 flex-shrink-0 ${transformStatus.hasTransforms ? 'text-emerald-400/60' : 'text-white/15'}`} />
+                                )}
                                 <span className="font-medium truncate text-sm">{collection.name}</span>
                                 {isSecurityMode && ruleStatus && ruleStatus.ruleCount > 0 && (
                                     <span className="text-[10px] font-medium bg-amber-500/15 text-amber-300/60 px-1.5 py-0.5 rounded-md flex-shrink-0">
                                         {ruleStatus.ruleCount}
+                                    </span>
+                                )}
+                                {isTransformerMode && transformStatus && transformStatus.nodeCount > 0 && (
+                                    <span className="text-[10px] font-medium bg-emerald-500/15 text-emerald-300/60 px-1.5 py-0.5 rounded-md flex-shrink-0">
+                                        {transformStatus.nodeCount}
                                     </span>
                                 )}
                             </div>
@@ -158,7 +179,7 @@ export default function Sidebar({
                             {!isSecurityMode && (
                                 <div className="text-xs text-white/20 mt-1">
                                     {collection.fields.length} field{collection.fields.length !== 1 ? 's' : ''}
-                                    {subcollectionCount > 0 && (
+                                    {subcollectionCount > 0 && !isTransformerMode && (
                                         <span> · {subcollectionCount} subcollection{subcollectionCount !== 1 ? 's' : ''}</span>
                                     )}
                                 </div>

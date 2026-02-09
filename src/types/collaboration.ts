@@ -2,7 +2,7 @@ import type { FirestoreProject, ProjectSecurityRules } from './index';
 
 // ─── Collaboration Types ────────────────────────────────────────────────────────
 
-export type AppView = 'editor' | 'security-rules' | 'overview';
+export type AppView = 'editor' | 'security-rules' | 'overview' | 'data-transformer';
 
 /** Cursor position tracked for each peer via DOM element path */
 export interface CursorPosition {

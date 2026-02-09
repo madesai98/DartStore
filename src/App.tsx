@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { FirestoreProject, FirestoreCollection, FirestoreField, FirestoreFieldType, ValidationGroup, ValidationRules, ValidationCondition, ProjectSecurityRules } from './types';
+import type { FirestoreProject, FirestoreCollection, FirestoreField, FirestoreFieldType, ValidationGroup, ValidationRules, ValidationCondition, ProjectSecurityRules, ProjectTransformConfig, CollectionTransformConfig, TransformNodeData, TransformEdgeData } from './types';
+import { createDefaultProjectTransformConfig, createDefaultCollectionTransformConfig } from './types/transformer';
 import { loadProject, saveProject, autoSaveProject, createNewProject } from './utils/storage';
 import { getDefaultOperatorForType } from './utils/validationOperators';
 import { generateFullDartFile } from './utils/dartGenerator';
 import { generateSecurityRules, createDefaultProjectSecurityRules } from './utils/securityRulesGenerator';
+import { generateCloudFunction } from './utils/cloudFunctionGenerator';
 import { useCollaboration } from './hooks/useCollaboration';
 import { useFocusTracking } from './hooks/useFocusTracking';
 import { buildElementPath, findMeaningfulElement, resolveElementPath } from './utils/elementPath';
@@ -17,8 +19,9 @@ import SecurityRulesPreview from './components/SecurityRulesPreview';
 import WelcomeScreen from './components/WelcomeScreen';
 import OverviewGraph from './components/OverviewGraph';
 import RemoteCursors from './components/RemoteCursors';
+import DataTransformerEditor from './components/DataTransformerEditor';
 
-type AppView = 'editor' | 'security-rules' | 'overview';
+type AppView = 'editor' | 'security-rules' | 'overview' | 'data-transformer';
 
 const findCollectionById = (collections: FirestoreCollection[], id: string): FirestoreCollection | null => {
   for (const collection of collections) {
@@ -88,6 +91,7 @@ function App() {
   const [securityRules, setSecurityRules] = useState<ProjectSecurityRules>(createDefaultProjectSecurityRules());
   const [isGuest, setIsGuest] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [transformConfig, setTransformConfig] = useState<ProjectTransformConfig>(createDefaultProjectTransformConfig());
 
   // ─── Collaboration ──────────────────────────────────────────────────────────
   const handleRemoteStateSync = useCallback((state: SyncedAppState) => {
@@ -140,6 +144,30 @@ function App() {
           setSecurityRules(JSON.parse(savedRules));
         }
       } catch { /* ignore */ }
+      // Load transform config from localStorage
+      try {
+        const savedTransform = localStorage.getItem('dartstore_transform_config');
+        if (savedTransform) {
+          const parsed = JSON.parse(savedTransform) as ProjectTransformConfig;
+          // Migrate old 8-array config shape to new 4-array shape
+          if (parsed.collectionConfigs) {
+            for (const [id, cfg] of Object.entries(parsed.collectionConfigs)) {
+              const oldCfg = cfg as unknown as Record<string, unknown>;
+              if (oldCfg.serverReadNodes && !oldCfg.readNodes) {
+                parsed.collectionConfigs[id] = {
+                  serverEnabled: Boolean(oldCfg.serverEnabled),
+                  clientEnabled: Boolean(oldCfg.clientEnabled),
+                  readNodes: (oldCfg.serverReadNodes as TransformNodeData[]) || [],
+                  readEdges: (oldCfg.serverReadEdges as TransformEdgeData[]) || [],
+                  writeNodes: (oldCfg.serverWriteNodes as TransformNodeData[]) || [],
+                  writeEdges: (oldCfg.serverWriteEdges as TransformEdgeData[]) || [],
+                };
+              }
+            }
+          }
+          setTransformConfig(parsed);
+        }
+      } catch { /* ignore */ }
     }
   }, []);
 
@@ -150,25 +178,39 @@ function App() {
     }
   }, [project, isGuest]);
 
-  // Auto-save security rules (skip for guests)
+  // Auto-save security rules (skip for guests, skip before project loads)
   useEffect(() => {
-    if (isGuest) return;
+    if (!project || isGuest) return;
     try {
       localStorage.setItem('dartstore_security_rules', JSON.stringify(securityRules));
     } catch { /* ignore */ }
-  }, [securityRules, isGuest]);
+  }, [project, securityRules, isGuest]);
+
+  // Auto-save transform config (skip for guests, skip before project loads)
+  useEffect(() => {
+    if (!project || isGuest) return;
+    try {
+      localStorage.setItem('dartstore_transform_config', JSON.stringify(transformConfig));
+    } catch { /* ignore */ }
+  }, [project, transformConfig, isGuest]);
 
   // Generate Dart code
   const dartCode = useMemo(() => {
     if (!project) return '';
-    return generateFullDartFile(project);
-  }, [project]);
+    return generateFullDartFile(project, transformConfig);
+  }, [project, transformConfig]);
 
   // Generate security rules code
   const securityRulesCode = useMemo(() => {
     if (!project) return '';
     return generateSecurityRules(project, securityRules);
   }, [project, securityRules]);
+
+  // Generate cloud function code
+  const cloudFunctionCode = useMemo(() => {
+    if (!project) return '';
+    return generateCloudFunction(project, transformConfig);
+  }, [project, transformConfig]);
 
   const selectedCollection = useMemo(() => {
     if (!project || !selectedCollectionId) return null;
@@ -389,6 +431,7 @@ function App() {
             collab.disconnect();
             setProject(null);
             setSecurityRules(createDefaultProjectSecurityRules());
+            setTransformConfig(createDefaultProjectTransformConfig());
             setActiveView('editor');
           }
         }}
@@ -426,6 +469,27 @@ function App() {
             title="Collections"
             mode="security-rules"
             securityRules={securityRules}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+            collaboration={{
+              status: collab.status,
+              sessionId: collab.sessionId,
+              localUser: collab.localUser,
+              peers: collab.peers,
+              onHost: collab.hostSession,
+              onDisconnect: handleGuestDisconnect,
+              onJumpToUser: handleJumpToUser,
+            }}
+          />
+        ) : activeView === 'data-transformer' ? (
+          <Sidebar
+            collections={project.collections}
+            selectedCollectionId={selectedCollectionId}
+            onSelectCollection={setSelectedCollectionId}
+            readOnly
+            title="Collections"
+            mode="data-transformer"
+            transformConfig={transformConfig}
             collapsed={sidebarCollapsed}
             onToggleCollapse={() => setSidebarCollapsed(c => !c)}
             collaboration={{
@@ -486,6 +550,29 @@ function App() {
               onShowPreview={() => setShowSecurityRulesPreview(true)}
               selectedCollectionId={selectedCollectionId}
             />
+          ) : activeView === 'data-transformer' ? (
+            selectedCollection ? (
+              <DataTransformerEditor
+                collection={selectedCollection}
+                transformConfig={transformConfig.collectionConfigs[selectedCollection.id] || createDefaultCollectionTransformConfig()}
+                onTransformConfigChange={(cfg: CollectionTransformConfig) => {
+                  setTransformConfig(prev => ({
+                    ...prev,
+                    collectionConfigs: {
+                      ...prev.collectionConfigs,
+                      [selectedCollection.id]: cfg,
+                    },
+                  }));
+                }}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <p className="text-lg text-white/30">No collection selected</p>
+                  <p className="text-sm mt-2 text-white/20">Select a collection to configure transforms</p>
+                </div>
+              </div>
+            )
           ) : (
             <OverviewGraph
               project={project}
@@ -496,8 +583,12 @@ function App() {
 
         {showCodePreview && (
           <CodePreview
-            code={dartCode}
+            dartCode={dartCode}
+            securityRulesCode={securityRulesCode}
+            cloudFunctionCode={cloudFunctionCode}
             projectName={project.name}
+            transformConfig={transformConfig}
+            onTransformConfigChange={setTransformConfig}
             onClose={() => setShowCodePreview(false)}
           />
         )}

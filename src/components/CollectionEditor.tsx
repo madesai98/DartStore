@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, Check, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Check, X, Monitor, Server } from 'lucide-react';
 import type { FirestoreCollection, FirestoreField, FirestoreFieldType, DefaultValuePreset, ValidationRules } from '../types';
 import { generateId } from '../utils/storage';
 import { getAvailablePresetsForType } from '../utils/dartGenerator';
@@ -241,6 +241,8 @@ function NewFieldForm({ allCollections, onAdd, onCancel }: NewFieldFormProps) {
     const [defaultPreset, setDefaultPreset] = useState<DefaultValuePreset>('none');
     const [customDefaultValue, setCustomDefaultValue] = useState('');
     const [referenceCollections, setReferenceCollections] = useState<string[]>([]);
+    const [visibilityClient, setVisibilityClient] = useState(true);
+    const [visibilityServer, setVisibilityServer] = useState(true);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -256,6 +258,7 @@ function NewFieldForm({ allCollections, onAdd, onCancel }: NewFieldFormProps) {
                 defaultPreset: defaultPreset !== 'none' ? defaultPreset : undefined,
                 defaultValue: customDefaultValue.trim() || undefined,
                 referenceCollections: type === 'reference' && referenceCollections.length > 0 ? referenceCollections : undefined,
+                visibility: (visibilityClient && visibilityServer) ? undefined : { client: visibilityClient, server: visibilityServer },
             };
             const validationError = validateField(field);
             if (validationError) {
@@ -412,6 +415,31 @@ function NewFieldForm({ allCollections, onAdd, onCancel }: NewFieldFormProps) {
                 </label>
             </div>
 
+            {/* Field Visibility */}
+            <div className="flex gap-4 mb-3 items-center">
+                <span className="text-sm font-medium text-white/40">Visibility:</span>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={visibilityClient}
+                        onChange={(e) => setVisibilityClient(e.target.checked)}
+                        className="rounded border-0 bg-white/[0.1] text-violet-500 focus:ring-violet-500/30"
+                    />
+                    <Monitor className="w-3.5 h-3.5 text-violet-400/70" />
+                    <span className="text-sm text-white/50">Client</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={visibilityServer}
+                        onChange={(e) => setVisibilityServer(e.target.checked)}
+                        className="rounded border-0 bg-white/[0.1] text-emerald-500 focus:ring-emerald-500/30"
+                    />
+                    <Server className="w-3.5 h-3.5 text-emerald-400/70" />
+                    <span className="text-sm text-white/50">Server</span>
+                </label>
+            </div>
+
             <div className="flex gap-2">
                 <button
                     type="button"
@@ -557,6 +585,43 @@ function FieldRow({ field, allCollections, isEditing, onEdit, onSave, onCancel, 
                     </label>
                 </div>
 
+                {/* Field Visibility */}
+                <div className="flex gap-4 mb-3 items-center">
+                    <span className="text-sm font-medium text-white/40">Visibility:</span>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={editData.visibility?.client !== false}
+                            onChange={(e) => setEditData({
+                                ...editData,
+                                visibility: {
+                                    client: e.target.checked,
+                                    server: editData.visibility?.server !== false,
+                                },
+                            })}
+                            className="rounded border-0 bg-white/[0.1] text-violet-500 focus:ring-violet-500/30"
+                        />
+                        <Monitor className="w-3.5 h-3.5 text-violet-400/70" />
+                        <span className="text-sm text-white/50">Client</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={editData.visibility?.server !== false}
+                            onChange={(e) => setEditData({
+                                ...editData,
+                                visibility: {
+                                    client: editData.visibility?.client !== false,
+                                    server: e.target.checked,
+                                },
+                            })}
+                            className="rounded border-0 bg-white/[0.1] text-emerald-500 focus:ring-emerald-500/30"
+                        />
+                        <Server className="w-3.5 h-3.5 text-emerald-400/70" />
+                        <span className="text-sm text-white/50">Server</span>
+                    </label>
+                </div>
+
                 <div className="flex gap-2">
                     <button
                         onClick={onCancel}
@@ -600,6 +665,20 @@ function FieldRow({ field, allCollections, isEditing, onEdit, onSave, onCancel, 
                             <span className="px-2 py-0.5 text-xs font-medium bg-violet-500/10 text-violet-300/60 rounded-md">
                                 Optional
                             </span>
+                        )}
+                        {field.visibility && (!field.visibility.client || !field.visibility.server) && (
+                            <>
+                                {field.visibility.client && !field.visibility.server && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-violet-500/10 text-violet-300/60 rounded-md">
+                                        <Monitor className="w-3 h-3" /> Client only
+                                    </span>
+                                )}
+                                {field.visibility.server && !field.visibility.client && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-500/10 text-emerald-300/60 rounded-md">
+                                        <Server className="w-3 h-3" /> Server only
+                                    </span>
+                                )}
+                            </>
                         )}
                     </div>
                     {field.description && (

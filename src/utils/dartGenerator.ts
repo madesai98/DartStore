@@ -1,4 +1,15 @@
-import type { FirestoreFieldType, FirestoreField, FirestoreCollection, FirestoreProject, ValidationGroup, ValidationCondition } from '../types';
+import type { FirestoreFieldType, FirestoreField, FirestoreCollection, FirestoreProject, ValidationGroup, ValidationCondition, CollectionTransformConfig, TransformNodeData, TransformEdgeData, ProjectTransformConfig } from '../types';
+import { TRANSFORM_NODE_REGISTRY } from '../types/transformer';
+
+/** Whether a field is visible on the client (Dart model) */
+function isClientField(field: FirestoreField): boolean {
+    return field.visibility?.client !== false; // default true
+}
+
+/** Whether a field is visible on the server (Firestore document) */
+function isServerField(field: FirestoreField): boolean {
+    return field.visibility?.server !== false; // default true
+}
 
 export function firestoreToDartType(
     firestoreType: FirestoreFieldType,
@@ -45,13 +56,188 @@ export function firestoreToDartType(
     return isOptional ? `${dartType}?` : dartType;
 }
 
-export function generateDartClass(collection: FirestoreCollection): string {
+// ─── Transform chain → Dart expression ──────────────────────────────────────────
+
+/**
+ * Topologically sort transform nodes so that dependencies come first.
+ */
+function topologicalSortTransforms(nodes: TransformNodeData[], edges: TransformEdgeData[]): TransformNodeData[] {
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+    const inDegree = new Map<string, number>();
+    const adjList = new Map<string, string[]>();
+
+    for (const n of nodes) {
+        inDegree.set(n.id, 0);
+        adjList.set(n.id, []);
+    }
+
+    for (const e of edges) {
+        if (nodeMap.has(e.sourceNodeId) && nodeMap.has(e.targetNodeId)) {
+            adjList.get(e.sourceNodeId)!.push(e.targetNodeId);
+            inDegree.set(e.targetNodeId, (inDegree.get(e.targetNodeId) || 0) + 1);
+        }
+    }
+
+    const queue = nodes.filter(n => (inDegree.get(n.id) || 0) === 0);
+    const sorted: TransformNodeData[] = [];
+
+    while (queue.length > 0) {
+        const node = queue.shift()!;
+        sorted.push(node);
+        for (const neighbor of adjList.get(node.id) || []) {
+            const deg = (inDegree.get(neighbor) || 1) - 1;
+            inDegree.set(neighbor, deg);
+            if (deg === 0) {
+                const n = nodeMap.get(neighbor);
+                if (n) queue.push(n);
+            }
+        }
+    }
+
+    return sorted;
+}
+
+/**
+ * Convert a TransformNodeType + its input expression(s) into an inline Dart expression.
+ * Returns the Dart expression string, or null if the type isn't supported inline.
+ */
+function dartTransformExpression(
+    nodeType: string,
+    inputExpr: string,
+    inputExprB: string | undefined,
+    params: Record<string, string>,
+): string | null {
+    switch (nodeType) {
+        // String
+        case 'string-toUpperCase': return `${inputExpr}.toUpperCase()`;
+        case 'string-toLowerCase': return `${inputExpr}.toLowerCase()`;
+        case 'string-trim': return `${inputExpr}.trim()`;
+        case 'string-split': return `${inputExpr}.split('${params.delimiter || ','}')`;
+        case 'string-join': return `(${inputExpr}).join('${params.delimiter || ','}')`;
+        case 'string-replace': return `${inputExpr}.replaceAll('${params.search || ''}', '${params.replace || ''}')`;
+        case 'string-slice': return `${inputExpr}.substring(${params.start || 0}${params.end ? ', ' + params.end : ''})`;
+        // Number
+        case 'number-round': return `${inputExpr}.round().toDouble()`;
+        case 'number-floor': return `${inputExpr}.floor().toDouble()`;
+        case 'number-ceil': return `${inputExpr}.ceil().toDouble()`;
+        case 'number-abs': return `${inputExpr}.abs()`;
+        case 'number-clamp': return `${inputExpr}.clamp(${params.min || 0}, ${params.max || 100}).toDouble()`;
+        case 'number-add': return `(${inputExpr}) + (${inputExprB || '0'})`;
+        case 'number-subtract': return `(${inputExpr}) - (${inputExprB || '0'})`;
+        case 'number-multiply': return `(${inputExpr}) * (${inputExprB || '1'})`;
+        case 'number-divide': return `(${inputExprB || '1'}) != 0 ? (${inputExpr}) / (${inputExprB || '1'}) : 0`;
+        case 'number-modulo': return `(${inputExprB || '1'}) != 0 ? (${inputExpr}) % (${inputExprB || '1'}) : 0`;
+        // Boolean
+        case 'boolean-not': return `!(${inputExpr})`;
+        case 'boolean-and': return `(${inputExpr}) && (${inputExprB || 'false'})`;
+        case 'boolean-or': return `(${inputExpr}) || (${inputExprB || 'false'})`;
+        // Conversion
+        case 'convert-toString': return `(${inputExpr}).toString()`;
+        case 'convert-toNumber': return `double.tryParse((${inputExpr}).toString()) ?? 0`;
+        case 'convert-toBoolean': return `(${inputExpr}) != null && (${inputExpr}) != false && (${inputExpr}) != 0`;
+        // Array
+        case 'array-flatten': return `(${inputExpr}).expand((e) => e is List ? e : [e]).toList()`;
+        case 'array-unique': return `(${inputExpr}).toSet().toList()`;
+        case 'array-reverse': return `(${inputExpr}).reversed.toList()`;
+        case 'array-length': return `(${inputExpr}).length`;
+        // Constants
+        case 'constant-string': return `'${params.value || ''}'`;
+        case 'constant-number': return `${params.value || '0'}`;
+        case 'constant-boolean': return `${params.value || 'true'}`;
+        // Logic
+        case 'logic-nullCoalesce': return `(${inputExpr}) ?? (${inputExprB || 'null'})`;
+        case 'logic-isNull': return `(${inputExpr}) == null`;
+        default: return null;
+    }
+}
+
+/**
+ * For a given field, trace through the transform graph to find the chain of
+ * transform nodes that connect from the source field node to the target field node.
+ * Returns a Dart expression wrapping the base expression through those transforms,
+ * or null if no transforms apply.
+ */
+function buildTransformedExpression(
+    fieldId: string,
+    baseExpr: string,
+    _sourceNodeId: string,
+    targetNodeId: string,
+    nodes: TransformNodeData[],
+    edges: TransformEdgeData[],
+    fields: FirestoreField[],
+): string | null {
+    // Check if there's a transform edge that targets the target-side field
+    // Field node handles use raw field IDs (no prefix)
+    const finalEdge = edges.find(
+        e => e.targetNodeId === targetNodeId && e.targetPortId === fieldId,
+    );
+    if (!finalEdge) return null;
+
+    // The source of the final edge should be a transform node
+    const lastTransformNode = nodes.find(n => n.id === finalEdge.sourceNodeId);
+    if (!lastTransformNode) return null;
+
+    // Topologically sort and compute expressions for each node
+    const sorted = topologicalSortTransforms(nodes, edges);
+    const nodeExpressions = new Map<string, string>();
+
+    for (const node of sorted) {
+        const cfg = TRANSFORM_NODE_REGISTRY[node.type];
+        if (!cfg) continue;
+
+        // Resolve input expressions
+        // Transform node handles are stored as 'in-{portId}' and 'out-{portId}'
+        let inputA: string | undefined;
+        let inputB: string | undefined;
+
+        for (const input of cfg.inputs) {
+            const handleId = `in-${input.id}`;
+            const edge = edges.find(e => e.targetNodeId === node.id && e.targetPortId === handleId);
+            if (!edge) continue;
+
+            let expr: string;
+            const sourceTransformNode = nodes.find(n => n.id === edge.sourceNodeId);
+            if (sourceTransformNode) {
+                // Source is another transform node — use its computed expression
+                expr = nodeExpressions.get(sourceTransformNode.id) || baseExpr;
+            } else {
+                // Source is a field node — resolve to base expression or another field
+                const srcField = fields.find(f => f.id === edge.sourcePortId);
+                if (srcField && srcField.id === fieldId) {
+                    expr = baseExpr;
+                } else if (srcField) {
+                    expr = toCamelCase(srcField.name);
+                } else {
+                    expr = baseExpr;
+                }
+            }
+
+            if (input.id === 'in' || input.id === 'a' || input.id === 'condition' || input.id === 'value') {
+                inputA = expr;
+            } else if (input.id === 'b' || input.id === 'fallback' || input.id === 'ms' || input.id === 'item') {
+                inputB = expr;
+            }
+        }
+
+        if (!inputA) inputA = baseExpr;
+
+        const dartExpr = dartTransformExpression(node.type, inputA, inputB, node.params);
+        if (dartExpr) {
+            nodeExpressions.set(node.id, dartExpr);
+        }
+    }
+
+    return nodeExpressions.get(lastTransformNode.id) || null;
+}
+
+export function generateDartClass(collection: FirestoreCollection, transformConfig?: CollectionTransformConfig): string {
     const className = toPascalCase(collection.name);
-    const fields = collection.fields.map(field => generateFieldDeclaration(field)).join('\n  ');
-    const constructor = generateConstructor(className, collection.fields);
-    const fromFirestore = generateFromFirestore(className, collection.fields);
-    const toFirestore = generateToFirestore(collection.fields);
-    const copyWith = generateCopyWith(className, collection.fields);
+    const clientFields = collection.fields.filter(isClientField);
+    const fields = clientFields.map(field => generateFieldDeclaration(field)).join('\n  ');
+    const constructor = generateConstructor(className, clientFields);
+    const fromFirestore = generateFromFirestore(className, collection.fields, transformConfig);
+    const toFirestore = generateToFirestore(collection.fields, transformConfig);
+    const copyWith = generateCopyWith(className, clientFields);
     const validate = generateValidateMethod(collection);
 
     return `/// ${collection.description || `Model for ${collection.name} collection`}
@@ -94,10 +280,32 @@ function generateConstructor(className: string, fields: FirestoreField[]): strin
     return `${className}({\n    ${params},\n  });`;
 }
 
-function generateFromFirestore(className: string, fields: FirestoreField[]): string {
-    const fieldParsing = fields.map(field => {
+function generateFromFirestore(className: string, fields: FirestoreField[], transformConfig?: CollectionTransformConfig): string {
+    // Only parse fields that exist both client-side (to assign) and server-side (to read from)
+    const clientFields = fields.filter(isClientField);
+    const fieldParsing = clientFields.map(field => {
         const fieldName = toCamelCase(field.name);
-        const parseLogic = generateParseLogic(field);
+        // Client-only fields don't exist in Firestore — use null/default
+        if (!isServerField(field)) {
+            return `      ${fieldName}: null`;
+        }
+        let parseLogic = generateParseLogic(field);
+
+        // Apply read transforms (Firestore → Client) if configured
+        if (transformConfig?.clientEnabled && transformConfig.readNodes.length > 0) {
+            const transformed = buildTransformedExpression(
+                field.id,
+                parseLogic,
+                'server-node',
+                'client-node',
+                transformConfig.readNodes,
+                transformConfig.readEdges,
+                fields,
+            );
+            if (transformed) {
+                parseLogic = transformed;
+            }
+        }
 
         return `      ${fieldName}: ${parseLogic}`;
     }).join(',\n');
@@ -142,20 +350,58 @@ function generateParseLogic(field: FirestoreField): string {
     }
 }
 
-function generateToFirestore(fields: FirestoreField[]): string {
-    const requiredFields = fields.filter(f => f.isRequired);
-    const optionalFields = fields.filter(f => !f.isRequired);
+function generateToFirestore(fields: FirestoreField[], transformConfig?: CollectionTransformConfig): string {
+    // Only serialize fields that exist in Firestore (server-visible)
+    const serverFields = fields.filter(f => isServerField(f) && isClientField(f));
+    const requiredFields = serverFields.filter(f => f.isRequired);
+    const optionalFields = serverFields.filter(f => !f.isRequired);
 
     const requiredMapping = requiredFields.map(field => {
         const fieldName = toCamelCase(field.name);
         const mapKey = field.name;
-        return `      '${mapKey}': ${fieldName}`;
+        let valueExpr = fieldName;
+
+        // Apply write transforms (Client → Firestore) if configured
+        if (transformConfig?.clientEnabled && transformConfig.writeNodes.length > 0) {
+            const transformed = buildTransformedExpression(
+                field.id,
+                fieldName,
+                'client-node',
+                'server-node',
+                transformConfig.writeNodes,
+                transformConfig.writeEdges,
+                fields,
+            );
+            if (transformed) {
+                valueExpr = transformed;
+            }
+        }
+
+        return `      '${mapKey}': ${valueExpr}`;
     });
 
     const optionalMapping = optionalFields.map(field => {
         const fieldName = toCamelCase(field.name);
         const mapKey = field.name;
-        return `      if (${fieldName} != null) '${mapKey}': ${fieldName}`;
+        let valueExpr = fieldName;
+
+        // Apply write transforms (Client → Firestore) if configured
+        if (transformConfig?.clientEnabled && transformConfig.writeNodes.length > 0) {
+            const transformed = buildTransformedExpression(
+                field.id,
+                fieldName,
+                'client-node',
+                'server-node',
+                transformConfig.writeNodes,
+                transformConfig.writeEdges,
+                fields,
+            );
+            if (transformed) {
+                valueExpr = transformed;
+            }
+        }
+
+        return `      if (${fieldName} != null) '${mapKey}': ${valueExpr}`;
     });
 
     const allMappings = [...requiredMapping, ...optionalMapping].join(',\n');
@@ -208,15 +454,16 @@ function flattenCollections(collections: FirestoreCollection[]): FirestoreCollec
     return result;
 }
 
-export function generateFullDartFile(project: FirestoreProject): string {
+export function generateFullDartFile(project: FirestoreProject, transformConfig?: ProjectTransformConfig): string {
     const imports = `import 'package:cloud_firestore/cloud_firestore.dart';
 
 `;
 
     const allCollections = flattenCollections(project.collections);
-    const classes = allCollections.map(collection =>
-        generateDartClass(collection)
-    ).join('\n\n');
+    const classes = allCollections.map(collection => {
+        const collConfig = transformConfig?.collectionConfigs[collection.id];
+        return generateDartClass(collection, collConfig);
+    }).join('\n\n');
 
     const header = `// Generated by DartStore Firestore Modeler
 // Project: ${project.name}

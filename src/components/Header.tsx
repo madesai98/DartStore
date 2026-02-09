@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Code2, Download, Upload, FileCode, Shield, LayoutGrid, Database, Menu, X, Check, Pencil } from 'lucide-react';
+import { Code2, Download, Upload, FileCode, Shield, LayoutGrid, Database, Menu, X, Check, Pencil, Workflow } from 'lucide-react';
 import type { FirestoreProject } from '../types';
 import { exportProject, exportDartCode, importProject } from '../utils/storage';
 import { generateFullDartFile } from '../utils/dartGenerator';
 
-type AppView = 'editor' | 'security-rules' | 'overview';
+type AppView = 'editor' | 'security-rules' | 'overview' | 'data-transformer';
 
 interface HeaderProps {
     project: FirestoreProject;
@@ -87,6 +87,7 @@ export default function Header({ project, onUpdateProject, onShowCode, onNewProj
     const tabs: { view: AppView; label: string; icon: React.ReactNode; activeClass: string }[] = [
         { view: 'editor', label: 'Models', icon: <Database className="w-3.5 h-3.5" />, activeClass: 'bg-violet-500/80 text-white' },
         { view: 'security-rules', label: 'Security Rules', icon: <Shield className="w-3.5 h-3.5" />, activeClass: 'bg-amber-500/80 text-white' },
+        { view: 'data-transformer', label: 'Transforms', icon: <Workflow className="w-3.5 h-3.5" />, activeClass: 'bg-emerald-500/80 text-white' },
         { view: 'overview', label: 'Overview', icon: <LayoutGrid className="w-3.5 h-3.5" />, activeClass: 'bg-teal-500/80 text-white' },
     ];
 

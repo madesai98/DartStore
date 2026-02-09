@@ -1,3 +1,22 @@
+// Re-export transformer types
+export type {
+    FieldVisibility,
+    TransformDirection,
+    TransformNodeType,
+    TransformNodeConfig,
+    TransformNodeData,
+    TransformEdgeData,
+    CollectionTransformConfig,
+    ProjectTransformConfig,
+} from './transformer';
+export {
+    createDefaultFieldVisibility,
+    createDefaultCollectionTransformConfig,
+    createDefaultProjectTransformConfig,
+    FIELD_TYPE_COLORS,
+    TRANSFORM_NODE_REGISTRY,
+} from './transformer';
+
 // Firestore field types
 export type FirestoreFieldType =
     | 'string'
@@ -55,6 +74,8 @@ export interface FirestoreField {
     mapValueType?: FirestoreFieldType;
     // For references - array of collection IDs that this reference can point to
     referenceCollections?: string[];
+    /** Where this field exists: client (Dart model), server (Firestore), or both */
+    visibility?: { client: boolean; server: boolean };
 }
 
 // Validation rule operator types per data type
