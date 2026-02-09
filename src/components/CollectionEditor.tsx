@@ -110,6 +110,7 @@ export default function CollectionEditor({
                             <button
                                 onClick={() => setEditingName(true)}
                                 className="opacity-0 group-hover:opacity-100 p-1.5 text-white/20 hover:text-white/50 hover:bg-white/[0.05] rounded-lg transition-all"
+                                aria-label="Edit collection name"
                             >
                                 <Edit2 className="w-4 h-4" />
                             </button>
@@ -155,6 +156,7 @@ export default function CollectionEditor({
                             <button
                                 onClick={() => setEditingDesc(true)}
                                 className="opacity-0 group-hover:opacity-100 p-1.5 text-white/20 hover:text-white/50 hover:bg-white/[0.05] rounded-lg transition-all"
+                                aria-label="Edit collection description"
                             >
                                 <Edit2 className="w-3 h-3" />
                             </button>
