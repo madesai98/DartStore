@@ -316,23 +316,31 @@ function generateReadHandler(
     // Build response with only client-visible fields
     lines.push(`${indent}const result: Record<string, any> = {};`);
     for (const f of clientFields) {
-        if (isServerField(f)) {
-            // Find if any transform edge targets this field
-            const overrideEdge = config.readEdges.find(
-                e => e.targetNodeId === 'client-node' && e.targetPortId === f.id,
-            );
-            if (overrideEdge) {
-                // Use the transform output
-                const sourceNode = config.readNodes.find(n => n.id === overrideEdge.sourceNodeId);
-                if (sourceNode) {
-                    const cleanPortId = overrideEdge.sourcePortId.replace(/^out-/, '');
-                    lines.push(`${indent}result['${f.name}'] = t_${overrideEdge.sourceNodeId.replace(/[^a-zA-Z0-9]/g, '_')}_${cleanPortId};`);
-                } else {
-                    lines.push(`${indent}result['${f.name}'] = ${toCamelCase(f.name)};`);
-                }
+        // Find if any transform edge targets this field
+        const overrideEdge = config.readEdges.find(
+            e => e.targetNodeId === 'client-node' && e.targetPortId === f.id,
+        );
+        if (overrideEdge) {
+            // Use the transform output
+            const sourceNode = config.readNodes.find(n => n.id === overrideEdge.sourceNodeId);
+            if (sourceNode) {
+                const cleanPortId = overrideEdge.sourcePortId.replace(/^out-/, '');
+                lines.push(`${indent}result['${f.name}'] = t_${overrideEdge.sourceNodeId.replace(/[^a-zA-Z0-9]/g, '_')}_${cleanPortId};`);
             } else {
-                lines.push(`${indent}result['${f.name}'] = ${toCamelCase(f.name)};`);
+                // Direct field-to-field edge (source is a field node, not a transform)
+                const srcField = collection.fields.find(sf => sf.id === overrideEdge.sourcePortId);
+                if (srcField) {
+                    lines.push(`${indent}result['${f.name}'] = ${toCamelCase(srcField.name)};`);
+                } else if (isServerField(f)) {
+                    lines.push(`${indent}result['${f.name}'] = ${toCamelCase(f.name)};`);
+                } else {
+                    lines.push(`${indent}result['${f.name}'] = null; // client-only field`);
+                }
             }
+        } else if (isServerField(f)) {
+            lines.push(`${indent}result['${f.name}'] = ${toCamelCase(f.name)};`);
+        } else {
+            lines.push(`${indent}result['${f.name}'] = null; // client-only field, no transform`);
         }
     }
     lines.push(`${indent}res.json({ id: snap.id, ...result });`);
@@ -350,7 +358,7 @@ function generateWriteHandler(
 ): string {
     const lines: string[] = [];
     const serverFields = collection.fields.filter(isServerField);
-    const clientFields = collection.fields.filter(f => isClientField(f) && isServerField(f));
+    const bothVisibleFields = collection.fields.filter(f => isClientField(f) && isServerField(f));
 
     lines.push(`${indent}// Write: Client → Firestore`);
     lines.push(`${indent}const body = req.body;`);
@@ -358,8 +366,11 @@ function generateWriteHandler(
     lines.push(`${indent}const docId = req.params.docId;`);
     lines.push('');
 
-    // Extract client-sent fields
-    for (const f of clientFields) {
+    // Extract client-sent fields (both-visible + client-only fields used in transforms)
+    const clientOnlyInTransforms = collection.fields.filter(f => isClientField(f) && !isServerField(f))
+        .filter(f => config.writeEdges.some(e => e.sourceNodeId === 'client-node' && e.sourcePortId === f.id));
+    const fieldsToExtract = [...bothVisibleFields, ...clientOnlyInTransforms];
+    for (const f of fieldsToExtract) {
         lines.push(`${indent}const ${toCamelCase(f.name)} = body['${f.name}'];`);
     }
     lines.push('');
@@ -380,22 +391,27 @@ function generateWriteHandler(
     // Build document data with server-visible fields
     lines.push(`${indent}const docData: Record<string, any> = {};`);
     for (const f of serverFields) {
-        if (isClientField(f)) {
-            const overrideEdge = config.writeEdges.find(
-                e => e.targetNodeId === 'server-node' && e.targetPortId === f.id,
-            );
-            if (overrideEdge) {
-                const sourceNode = config.writeNodes.find(n => n.id === overrideEdge.sourceNodeId);
-                if (sourceNode) {
-                    const cleanPortId = overrideEdge.sourcePortId.replace(/^out-/, '');
-                    lines.push(`${indent}docData['${f.name}'] = t_${overrideEdge.sourceNodeId.replace(/[^a-zA-Z0-9]/g, '_')}_${cleanPortId};`);
-                } else {
+        const overrideEdge = config.writeEdges.find(
+            e => e.targetNodeId === 'server-node' && e.targetPortId === f.id,
+        );
+        if (overrideEdge) {
+            const sourceNode = config.writeNodes.find(n => n.id === overrideEdge.sourceNodeId);
+            if (sourceNode) {
+                const cleanPortId = overrideEdge.sourcePortId.replace(/^out-/, '');
+                lines.push(`${indent}docData['${f.name}'] = t_${overrideEdge.sourceNodeId.replace(/[^a-zA-Z0-9]/g, '_')}_${cleanPortId};`);
+            } else {
+                // Direct field-to-field edge (source is a field node, not a transform)
+                const srcField = collection.fields.find(sf => sf.id === overrideEdge.sourcePortId);
+                if (srcField) {
+                    lines.push(`${indent}docData['${f.name}'] = ${toCamelCase(srcField.name)};`);
+                } else if (isClientField(f)) {
                     lines.push(`${indent}docData['${f.name}'] = ${toCamelCase(f.name)};`);
                 }
-            } else {
-                lines.push(`${indent}docData['${f.name}'] = ${toCamelCase(f.name)};`);
             }
+        } else if (isClientField(f)) {
+            lines.push(`${indent}docData['${f.name}'] = ${toCamelCase(f.name)};`);
         }
+        // Server-only fields without transforms are omitted (no source for them)
     }
     lines.push('');
     lines.push(`${indent}if (docId) {`);
@@ -421,7 +437,7 @@ export function generateCloudFunction(
     // Find collections that have server transforms enabled
     const activeCollections = allCollections.filter(c => {
         const config = transformConfig.collectionConfigs[c.id];
-        return config && config.serverEnabled;
+        return config && (config.readTransformMode === 'server' || config.writeTransformMode === 'server');
     });
 
     if (activeCollections.length === 0) {
@@ -480,39 +496,44 @@ export function generateCloudFunction(
         lines.push(`}`);
         lines.push('');
 
-        // Read route
-        lines.push(`app.get('${routeBase}/:docId', async (req, res) => {`);
-        lines.push(`  try {`);
-        lines.push(generateReadHandler(collection, config, collPath, '    '));
-        lines.push(`  } catch (err: any) {`);
-        lines.push(`    console.error('Read ${className} error:', err);`);
-        lines.push(`    res.status(500).json({ error: err.message });`);
-        lines.push(`  }`);
-        lines.push(`});`);
-        lines.push('');
+        // Read route (only when read transforms are server-side)
+        if (config.readTransformMode === 'server') {
+            lines.push(`app.get('${routeBase}/:docId', async (req, res) => {`);
+            lines.push(`  try {`);
+            lines.push(generateReadHandler(collection, config, collPath, '    '));
+            lines.push(`  } catch (err: any) {`);
+            lines.push(`    console.error('Read ${className} error:', err);`);
+            lines.push(`    res.status(500).json({ error: err.message });`);
+            lines.push(`  }`);
+            lines.push(`});`);
+            lines.push('');
+        }
 
-        // Write route (create)
-        lines.push(`app.post('${routeBase}', async (req, res) => {`);
-        lines.push(`  try {`);
-        lines.push(`    req.params.docId = '';`);
-        lines.push(generateWriteHandler(collection, config, collPath, '    '));
-        lines.push(`  } catch (err: any) {`);
-        lines.push(`    console.error('Write ${className} error:', err);`);
-        lines.push(`    res.status(500).json({ error: err.message });`);
-        lines.push(`  }`);
-        lines.push(`});`);
-        lines.push('');
+        // Write routes (only when write transforms are server-side)
+        if (config.writeTransformMode === 'server') {
+            // Write route (create)
+            lines.push(`app.post('${routeBase}', async (req, res) => {`);
+            lines.push(`  try {`);
+            lines.push(`    req.params.docId = '';`);
+            lines.push(generateWriteHandler(collection, config, collPath, '    '));
+            lines.push(`  } catch (err: any) {`);
+            lines.push(`    console.error('Write ${className} error:', err);`);
+            lines.push(`    res.status(500).json({ error: err.message });`);
+            lines.push(`  }`);
+            lines.push(`});`);
+            lines.push('');
 
-        // Write route (update)
-        lines.push(`app.put('${routeBase}/:docId', async (req, res) => {`);
-        lines.push(`  try {`);
-        lines.push(generateWriteHandler(collection, config, collPath, '    '));
-        lines.push(`  } catch (err: any) {`);
-        lines.push(`    console.error('Update ${className} error:', err);`);
-        lines.push(`    res.status(500).json({ error: err.message });`);
-        lines.push(`  }`);
-        lines.push(`});`);
-        lines.push('');
+            // Write route (update)
+            lines.push(`app.put('${routeBase}/:docId', async (req, res) => {`);
+            lines.push(`  try {`);
+            lines.push(generateWriteHandler(collection, config, collPath, '    '));
+            lines.push(`  } catch (err: any) {`);
+            lines.push(`    console.error('Update ${className} error:', err);`);
+            lines.push(`    res.status(500).json({ error: err.message });`);
+            lines.push(`  }`);
+            lines.push(`});`);
+            lines.push('');
+        }
     }
 
     // Export

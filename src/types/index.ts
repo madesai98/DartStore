@@ -2,6 +2,7 @@
 export type {
     FieldVisibility,
     TransformDirection,
+    TransformMode,
     TransformNodeType,
     TransformNodeConfig,
     TransformNodeData,

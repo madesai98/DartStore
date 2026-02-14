@@ -111,8 +111,8 @@ TRANSFORM_A = {
     "endpointName": "api",
     "collectionConfigs": {
         "c1": {
-            "serverEnabled": False,
-            "clientEnabled": True,
+            "readTransformMode": "client",
+            "writeTransformMode": "client",
             "readNodes": READ_NODES_A,
             "readEdges": READ_EDGES_A,
             "writeNodes": [],
@@ -162,8 +162,8 @@ TRANSFORM_B = {
     "endpointName": "api",
     "collectionConfigs": {
         "c1": {
-            "serverEnabled": False,
-            "clientEnabled": True,
+            "readTransformMode": "client",
+            "writeTransformMode": "client",
             "readNodes": [],
             "readEdges": [],
             "writeNodes": WRITE_NODES_B,
@@ -208,8 +208,8 @@ TRANSFORM_C = {
     "endpointName": "api",
     "collectionConfigs": {
         "c1": {
-            "serverEnabled": False,
-            "clientEnabled": True,
+            "readTransformMode": "client",
+            "writeTransformMode": "client",
             "readNodes": CHAIN_NODES,
             "readEdges": CHAIN_EDGES,
             "writeNodes": [],
@@ -264,11 +264,11 @@ with sync_playwright() as p:
 
     print("\n--- Baseline checks ---")
     check("class Messages" in code_d or "class Message" in code_d, "Class name present")
-    check("fromFirestore" in code_d, "fromFirestore factory present")
-    check("toFirestore" in code_d, "toFirestore method present")
+    check("_fromFirestore" in code_d, "_fromFirestore factory present")
+    check("_toFirestore" in code_d, "_toFirestore method present")
     check("copyWith" in code_d, "copyWith method present")
-    check("final String body" in code_d, "String field typed correctly")
-    check("final bool?" in code_d or "final bool " in code_d, "Boolean field present")
+    check("String body" in code_d, "String field typed correctly")
+    check("bool?" in code_d or "bool " in code_d, "Boolean field present")
     check("data?['body']" in code_d, "fromFirestore reads body field")
     check("data?['read']" in code_d, "fromFirestore reads read field")
     check("'body': body" in code_d, "toFirestore writes body field")
@@ -303,11 +303,11 @@ with sync_playwright() as p:
 
     # toFirestore should NOT have these transforms (no write transforms configured)
     # Check the toFirestore section specifically
-    to_firestore_start = code_a.find("toFirestore()")
+    to_firestore_start = code_a.find("_toFirestore()")
     if to_firestore_start > 0:
         to_firestore_section = code_a[to_firestore_start:to_firestore_start + 500]
         check(".toUpperCase()" not in to_firestore_section,
-              "toFirestore does NOT contain toUpperCase (read-only transforms)")
+              "_toFirestore does NOT contain toUpperCase (read-only transforms)")
 
     close_code_preview(page)
 
@@ -330,12 +330,12 @@ with sync_playwright() as p:
     check("0, 9999" in code_b, "number-clamp params: 0, 9999")
 
     # fromFirestore should NOT have write transforms
-    from_firestore_start = code_b.find("fromFirestore")
-    to_firestore_start = code_b.find("toFirestore")
+    from_firestore_start = code_b.find("_fromFirestore")
+    to_firestore_start = code_b.find("_toFirestore")
     if from_firestore_start > 0 and to_firestore_start > from_firestore_start:
         from_firestore_section = code_b[from_firestore_start:to_firestore_start]
         check(".trim()" not in from_firestore_section,
-              "fromFirestore does NOT contain trim (write-only transforms)")
+              "_fromFirestore does NOT contain trim (write-only transforms)")
 
     close_code_preview(page)
 

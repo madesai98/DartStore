@@ -118,7 +118,7 @@ export default function Sidebar({
         const cfg = transformConfig.collectionConfigs[collectionId];
         if (!cfg) return { hasTransforms: false, nodeCount: 0 };
         const nodeCount = cfg.readNodes.length + cfg.writeNodes.length;
-        const hasTransforms = cfg.serverEnabled || cfg.clientEnabled;
+        const hasTransforms = cfg.readTransformMode !== 'none' || cfg.writeTransformMode !== 'none';
         return { hasTransforms, nodeCount };
     };
 

@@ -1033,32 +1033,48 @@ export default function DataTransformerEditor({
 
                     <div className="flex-1" />
 
-                    {/* Client / Server toggles */}
+                    {/* Read / Write transform mode selectors */}
                     <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                        <label className="flex items-center gap-1.5 cursor-pointer">
+                        {/* Read transform mode */}
+                        <div className="flex items-center gap-1.5">
+                            <BookOpen className="w-3.5 h-3.5 text-white/30" />
                             <button
-                                onClick={() => onTransformConfigChange({ ...config, clientEnabled: !config.clientEnabled })}
-                                className={`w-8 h-[18px] shrink-0 rounded-full transition-colors duration-200 relative ${config.clientEnabled ? 'bg-violet-500' : 'bg-white/[0.1]'
+                                onClick={() => {
+                                    const modes: Array<'none' | 'client' | 'server'> = ['none', 'client', 'server'];
+                                    const idx = modes.indexOf(config.readTransformMode || 'none');
+                                    onTransformConfigChange({ ...config, readTransformMode: modes[(idx + 1) % 3] });
+                                }}
+                                className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all duration-200 min-w-[52px] text-center ${config.readTransformMode === 'client'
+                                        ? 'bg-violet-500/80 text-white'
+                                        : config.readTransformMode === 'server'
+                                            ? 'bg-emerald-500/80 text-white'
+                                            : 'bg-white/[0.06] text-white/30'
                                     }`}
+                                title={`Read transforms: ${config.readTransformMode || 'none'}\nClick to cycle: none → client → server`}
                             >
-                                <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform duration-200 ${config.clientEnabled ? 'translate-x-4' : 'translate-x-0.5'
-                                    }`} />
+                                {config.readTransformMode === 'client' ? '⬇ Client' : config.readTransformMode === 'server' ? '⬇ Server' : '⬇ Off'}
                             </button>
-                            <Monitor className="w-3.5 h-3.5 text-violet-400/70" />
-                            <span className="text-xs text-white/50 hidden sm:inline">Client</span>
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
+                        </div>
+                        {/* Write transform mode */}
+                        <div className="flex items-center gap-1.5">
+                            <Pencil className="w-3.5 h-3.5 text-white/30" />
                             <button
-                                onClick={() => onTransformConfigChange({ ...config, serverEnabled: !config.serverEnabled })}
-                                className={`w-8 h-[18px] shrink-0 rounded-full transition-colors duration-200 relative ${config.serverEnabled ? 'bg-emerald-500' : 'bg-white/[0.1]'
+                                onClick={() => {
+                                    const modes: Array<'none' | 'client' | 'server'> = ['none', 'client', 'server'];
+                                    const idx = modes.indexOf(config.writeTransformMode || 'none');
+                                    onTransformConfigChange({ ...config, writeTransformMode: modes[(idx + 1) % 3] });
+                                }}
+                                className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all duration-200 min-w-[52px] text-center ${config.writeTransformMode === 'client'
+                                        ? 'bg-violet-500/80 text-white'
+                                        : config.writeTransformMode === 'server'
+                                            ? 'bg-emerald-500/80 text-white'
+                                            : 'bg-white/[0.06] text-white/30'
                                     }`}
+                                title={`Write transforms: ${config.writeTransformMode || 'none'}\nClick to cycle: none → client → server`}
                             >
-                                <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform duration-200 ${config.serverEnabled ? 'translate-x-4' : 'translate-x-0.5'
-                                    }`} />
+                                {config.writeTransformMode === 'client' ? '⬆ Client' : config.writeTransformMode === 'server' ? '⬆ Server' : '⬆ Off'}
                             </button>
-                            <Server className="w-3.5 h-3.5 text-emerald-400/70" />
-                            <span className="text-xs text-white/50 hidden sm:inline">Server</span>
-                        </label>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -134,7 +134,7 @@ TRANSFORM_1 = {
     "endpointName": "advancedApi",
     "collectionConfigs": {
         "c1": {
-            "serverEnabled": True, "clientEnabled": True,
+            "readTransformMode": "server", "writeTransformMode": "server",
             "readNodes": NODES_1, "readEdges": EDGES_1,
             "writeNodes": [], "writeEdges": [],
         }
@@ -208,7 +208,7 @@ TRANSFORM_2 = {
     "endpointName": "recordsApi",
     "collectionConfigs": {
         "c2": {
-            "serverEnabled": True, "clientEnabled": True,
+            "readTransformMode": "server", "writeTransformMode": "server",
             "readNodes": NODES_2, "readEdges": EDGES_2,
             "writeNodes": [], "writeEdges": [],
         }
@@ -239,7 +239,7 @@ TRANSFORM_3 = {
     "endpointName": "secretsApi",
     "collectionConfigs": {
         "c3": {
-            "serverEnabled": True, "clientEnabled": False,
+            "readTransformMode": "server", "writeTransformMode": "server",
             "readNodes": [], "readEdges": [],
             "writeNodes": [], "writeEdges": [],
         }
@@ -340,8 +340,8 @@ with sync_playwright() as p:
     check("computedLabel" in dart3, "Client-only field 'computedLabel' appears in Dart class")
     # server-only field should NOT appear in Dart class (client: false)
     check("secretKey" not in dart3, "Server-only field 'secretKey' NOT in Dart class")
-    # fromFirestore: computedLabel (client-only, not in Firestore) should get null
-    check("null" in dart3, "Client-only field gets null in fromFirestore")
+    # _fromFirestore: computedLabel (client-only, not in Firestore) should get null
+    check("null" in dart3, "Client-only field gets null in _fromFirestore")
 
     # Cloud function: server-only field should be in server interface
     close_preview(page)

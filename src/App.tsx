@@ -166,19 +166,34 @@ function App() {
         const savedTransform = localStorage.getItem('dartstore_transform_config');
         if (savedTransform) {
           const parsed = JSON.parse(savedTransform) as ProjectTransformConfig;
-          // Migrate old 8-array config shape to new 4-array shape
+          // Migrate old config shapes to current shape
           if (parsed.collectionConfigs) {
             for (const [id, cfg] of Object.entries(parsed.collectionConfigs)) {
               const oldCfg = cfg as unknown as Record<string, unknown>;
+              // Migrate old 8-array config shape to 4-array shape
               if (oldCfg.serverReadNodes && !oldCfg.readNodes) {
                 parsed.collectionConfigs[id] = {
-                  serverEnabled: Boolean(oldCfg.serverEnabled),
-                  clientEnabled: Boolean(oldCfg.clientEnabled),
+                  readTransformMode: oldCfg.clientEnabled ? 'client' : oldCfg.serverEnabled ? 'server' : 'none',
+                  writeTransformMode: oldCfg.clientEnabled ? 'client' : oldCfg.serverEnabled ? 'server' : 'none',
                   readNodes: (oldCfg.serverReadNodes as TransformNodeData[]) || [],
                   readEdges: (oldCfg.serverReadEdges as TransformEdgeData[]) || [],
                   writeNodes: (oldCfg.serverWriteNodes as TransformNodeData[]) || [],
                   writeEdges: (oldCfg.serverWriteEdges as TransformEdgeData[]) || [],
                 };
+              }
+              // Migrate from serverEnabled/clientEnabled booleans to tristate
+              if ('serverEnabled' in oldCfg || 'clientEnabled' in oldCfg) {
+                const clientOn = Boolean(oldCfg.clientEnabled);
+                const serverOn = Boolean(oldCfg.serverEnabled);
+                parsed.collectionConfigs[id] = {
+                  ...parsed.collectionConfigs[id],
+                  readTransformMode: clientOn ? 'client' : serverOn ? 'server' : 'none',
+                  writeTransformMode: clientOn ? 'client' : serverOn ? 'server' : 'none',
+                } as CollectionTransformConfig;
+                // Clean up old keys
+                const asCfg = parsed.collectionConfigs[id] as unknown as Record<string, unknown>;
+                delete asCfg.serverEnabled;
+                delete asCfg.clientEnabled;
               }
             }
           }

@@ -162,7 +162,7 @@ function dartTransformExpression(
 function buildTransformedExpression(
     fieldId: string,
     baseExpr: string,
-    _sourceNodeId: string,
+    sourceNodeId: string,
     targetNodeId: string,
     nodes: TransformNodeData[],
     edges: TransformEdgeData[],
@@ -175,9 +175,21 @@ function buildTransformedExpression(
     );
     if (!finalEdge) return null;
 
-    // The source of the final edge should be a transform node
+    // The source of the final edge is either a transform node or a direct field-to-field connection
     const lastTransformNode = nodes.find(n => n.id === finalEdge.sourceNodeId);
-    if (!lastTransformNode) return null;
+    if (!lastTransformNode) {
+        // Direct field-to-field edge (no intermediate transform node)
+        // e.g. server-node:fieldA → client-node:fieldB
+        const srcField = fields.find(f => f.id === finalEdge.sourcePortId);
+        if (srcField) {
+            if (sourceNodeId === 'server-node') {
+                return generateParseLogic(srcField);
+            } else {
+                return toCamelCase(srcField.name);
+            }
+        }
+        return null;
+    }
 
     // Topologically sort and compute expressions for each node
     const sorted = topologicalSortTransforms(nodes, edges);
@@ -208,7 +220,17 @@ function buildTransformedExpression(
                 if (srcField && srcField.id === fieldId) {
                     expr = baseExpr;
                 } else if (srcField) {
-                    expr = toCamelCase(srcField.name);
+                    // Cross-field transform: a different field feeds into this one.
+                    // For READ (sourceNodeId === 'server-node'): the source field
+                    // lives in Firestore data, so use the parse expression.
+                    // For WRITE (sourceNodeId === 'client-node'): the source field
+                    // is a Dart class property, so use its camelCase name.
+                    if (sourceNodeId === 'server-node') {
+                        // Wrap in parens so cast / method chains compose correctly
+                        expr = `(${generateParseLogic(srcField)})`;
+                    } else {
+                        expr = toCamelCase(srcField.name);
+                    }
                 } else {
                     expr = baseExpr;
                 }
@@ -232,7 +254,13 @@ function buildTransformedExpression(
     return nodeExpressions.get(lastTransformNode.id) || null;
 }
 
-export function generateDartClass(collection: FirestoreCollection, transformConfig?: CollectionTransformConfig): string {
+export function generateDartClass(
+    collection: FirestoreCollection,
+    transformConfig?: CollectionTransformConfig,
+    serverRoute?: string,
+    _endpointName?: string,
+    collectionPath?: string,
+): string {
     const className = toPascalCase(collection.name);
     const clientFields = collection.fields.filter(isClientField);
     const fields = clientFields.map(field => generateFieldDeclaration(field)).join('\n  ');
@@ -242,9 +270,40 @@ export function generateDartClass(collection: FirestoreCollection, transformConf
     const copyWith = generateCopyWith(className, clientFields);
     const validate = generateValidateMethod(collection);
 
+    const hasServerRead = transformConfig?.readTransformMode === 'server';
+    const hasServerWrite = transformConfig?.writeTransformMode === 'server';
+    const needsServerMethods = (hasServerRead || hasServerWrite) && serverRoute;
+
+    // fromJson / toJson (always useful, required for server mode)
+    const fromJson = generateFromJson(className, clientFields);
+    const toJson = generateToJson(clientFields);
+
+    // Server-mode methods (private)
+    const serverMethods = needsServerMethods
+        ? generateServerMethods(className, serverRoute, hasServerRead!, hasServerWrite!)
+        : '';
+
+    // Collection path for Firestore operations (defaults to collection name)
+    const path = collectionPath || collection.name;
+
+    // ORM public API methods
+    const uploadMethod = generateUploadMethod(className, collection, path, hasServerRead || false, hasServerWrite || false, !!needsServerMethods);
+    const downloadMethod = generateDownloadMethod(className, path, hasServerRead || false, !!needsServerMethods);
+    const deleteRemoteMethod = generateDeleteRemoteMethod(path);
+    const fetchAllMethod = generateFetchAllMethod(className, path, hasServerRead || false, !!needsServerMethods);
+
+    // _updateFrom helper for download
+    const updateFrom = generateUpdateFrom(clientFields);
+
     return `/// ${collection.description || `Model for ${collection.name} collection`}
 class ${className} {
   ${fields}
+
+  /// Internal Firestore document ID — set after upload or download.
+  String? _remoteId;
+
+  /// The paired Firestore document ID, or null if not yet synced.
+  String? get remoteId => _remoteId;
 
   ${constructor}
 
@@ -252,7 +311,16 @@ class ${className} {
 
   ${toFirestore}
 
+  ${fromJson}
+
+  ${toJson}
+
   ${copyWith}
+${serverMethods}${uploadMethod}
+${downloadMethod}
+${deleteRemoteMethod}
+${fetchAllMethod}
+${updateFrom}
 ${validate}}`;
 }
 
@@ -265,7 +333,7 @@ function generateFieldDeclaration(field: FirestoreField): string {
         field.mapValueType
     );
     const comment = field.description ? `/// ${field.description}\n  ` : '';
-    return `${comment}final ${dartType} ${toCamelCase(field.name)};`;
+    return `${comment}${dartType} ${toCamelCase(field.name)};`;
 }
 
 function generateConstructor(className: string, fields: FirestoreField[]): string {
@@ -287,17 +355,14 @@ function generateFromFirestore(className: string, fields: FirestoreField[], tran
     const clientFields = fields.filter(isClientField);
     const fieldParsing = clientFields.map(field => {
         const fieldName = toCamelCase(field.name);
-        // Client-only fields don't exist in Firestore — use null/default
-        if (!isServerField(field)) {
-            return `      ${fieldName}: null`;
-        }
-        let parseLogic = generateParseLogic(field);
 
-        // Apply read transforms (Firestore → Client) if configured
-        if (transformConfig?.clientEnabled && transformConfig.readNodes.length > 0) {
+        // Check for read transforms first (Firestore → Client)
+        // Even client-only fields may receive a value from a transform (e.g. constant)
+        if (transformConfig?.readTransformMode === 'client' && (transformConfig.readNodes.length > 0 || transformConfig.readEdges.length > 0)) {
+            const baseExpr = isServerField(field) ? generateParseLogic(field) : 'null';
             const transformed = buildTransformedExpression(
                 field.id,
-                parseLogic,
+                baseExpr,
                 'server-node',
                 'client-node',
                 transformConfig.readNodes,
@@ -305,22 +370,30 @@ function generateFromFirestore(className: string, fields: FirestoreField[], tran
                 fields,
             );
             if (transformed) {
-                parseLogic = transformed;
+                return `      ${fieldName}: ${transformed}`;
             }
         }
 
+        // Client-only fields don't exist in Firestore — use null/default
+        if (!isServerField(field)) {
+            return `      ${fieldName}: null`;
+        }
+
+        const parseLogic = generateParseLogic(field);
         return `      ${fieldName}: ${parseLogic}`;
     }).join(',\n');
 
-    return `/// Create ${className} from Firestore document
-  factory ${className}.fromFirestore(
+    return `/// Create ${className} from Firestore document (internal)
+  factory ${className}._fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> snapshot,
     SnapshotOptions? options,
   ) {
     final data = snapshot.data();
-    return ${className}(
+    final instance = ${className}(
 ${fieldParsing},
     );
+    instance._remoteId = snapshot.id;
+    return instance;
   }`;
 }
 
@@ -355,21 +428,33 @@ function generateParseLogic(field: FirestoreField): string {
 }
 
 function generateToFirestore(fields: FirestoreField[], transformConfig?: CollectionTransformConfig): string {
-    // Only serialize fields that exist in Firestore (server-visible)
-    const serverFields = fields.filter(f => isServerField(f) && isClientField(f));
-    const requiredFields = serverFields.filter(f => f.isRequired);
-    const optionalFields = serverFields.filter(f => !f.isRequired);
+    // Serialize fields that exist in Firestore (server-visible)
+    // Include both-visible fields directly, and server-only fields that have write transforms
+    const bothVisibleFields = fields.filter(f => isServerField(f) && isClientField(f));
+
+    // Server-only fields that have a write transform targeting them
+    const serverOnlyWithTransform = (transformConfig?.writeTransformMode === 'client' && (transformConfig.writeNodes.length > 0 || transformConfig.writeEdges.length > 0))
+        ? fields.filter(f => isServerField(f) && !isClientField(f)).filter(f => {
+            return transformConfig.writeEdges.some(
+                e => e.targetNodeId === 'server-node' && e.targetPortId === f.id,
+            );
+        })
+        : [];
+
+    const allServerFields = [...bothVisibleFields, ...serverOnlyWithTransform];
+    const requiredFields = allServerFields.filter(f => f.isRequired);
+    const optionalFields = allServerFields.filter(f => !f.isRequired);
 
     const requiredMapping = requiredFields.map(field => {
         const fieldName = toCamelCase(field.name);
         const mapKey = field.name;
-        let valueExpr = fieldName;
+        let valueExpr = isClientField(field) ? fieldName : 'null /* server-only */';
 
         // Apply write transforms (Client → Firestore) if configured
-        if (transformConfig?.clientEnabled && transformConfig.writeNodes.length > 0) {
+        if (transformConfig?.writeTransformMode === 'client' && (transformConfig.writeNodes.length > 0 || transformConfig.writeEdges.length > 0)) {
             const transformed = buildTransformedExpression(
                 field.id,
-                fieldName,
+                isClientField(field) ? fieldName : 'null',
                 'client-node',
                 'server-node',
                 transformConfig.writeNodes,
@@ -387,13 +472,14 @@ function generateToFirestore(fields: FirestoreField[], transformConfig?: Collect
     const optionalMapping = optionalFields.map(field => {
         const fieldName = toCamelCase(field.name);
         const mapKey = field.name;
-        let valueExpr = fieldName;
+        let valueExpr = isClientField(field) ? fieldName : 'null /* server-only */';
+        let hasTransform = false;
 
         // Apply write transforms (Client → Firestore) if configured
-        if (transformConfig?.clientEnabled && transformConfig.writeNodes.length > 0) {
+        if (transformConfig?.writeTransformMode === 'client' && (transformConfig.writeNodes.length > 0 || transformConfig.writeEdges.length > 0)) {
             const transformed = buildTransformedExpression(
                 field.id,
-                fieldName,
+                isClientField(field) ? fieldName : 'null',
                 'client-node',
                 'server-node',
                 transformConfig.writeNodes,
@@ -402,15 +488,20 @@ function generateToFirestore(fields: FirestoreField[], transformConfig?: Collect
             );
             if (transformed) {
                 valueExpr = transformed;
+                hasTransform = true;
             }
         }
 
+        // Server-only fields with transforms are always written (no null guard needed)
+        if (!isClientField(field) && hasTransform) {
+            return `      '${mapKey}': ${valueExpr}`;
+        }
         return `      if (${fieldName} != null) '${mapKey}': ${valueExpr}`;
     });
 
     const allMappings = [...requiredMapping, ...optionalMapping].join(',\n');
 
-    return `/// Convert to Firestore document\n  /// Optional fields set to null are omitted to avoid storing null values\n  Map<String, dynamic> toFirestore() {\n    return {\n${allMappings},\n    };\n  }`;
+    return `/// Convert to Firestore document (internal)\n  /// Optional fields set to null are omitted to avoid storing null values\n  Map<String, dynamic> _toFirestore() {\n    return {\n${allMappings},\n    };\n  }`;
 }
 
 function generateCopyWith(className: string, fields: FirestoreField[]): string {
@@ -442,6 +533,287 @@ ${assignments},
   }`;
 }
 
+function generateFromJson(className: string, clientFields: FirestoreField[]): string {
+    const parsing = clientFields.map(field => {
+        const fieldName = toCamelCase(field.name);
+        const mapKey = field.name;
+        return `      ${fieldName}: ${generateJsonParseLogic(field, mapKey)}`;
+    }).join(',\n');
+
+    return `/// Create ${className} from JSON map (internal)
+  factory ${className}._fromJson(Map<String, dynamic> json) {
+    return ${className}(
+${parsing},
+    );
+  }`;
+}
+
+function generateJsonParseLogic(field: FirestoreField, key: string): string {
+    const isOptional = !field.isRequired;
+    switch (field.type) {
+        case 'string':
+            return `json['${key}'] as String${isOptional ? '?' : ''}`;
+        case 'number':
+            return `(json['${key}'] as num${isOptional ? '?' : ''})${isOptional ? '?' : ''}.toDouble()`;
+        case 'boolean':
+            return `json['${key}'] as bool${isOptional ? '?' : ''}`;
+        case 'timestamp':
+            if (isOptional) {
+                return `json['${key}'] != null ? DateTime.parse(json['${key}'] as String) : null`;
+            }
+            return `DateTime.parse(json['${key}'] as String)`;
+        case 'geopoint':
+            if (isOptional) {
+                return `json['${key}'] != null ? GeoPoint((json['${key}']['latitude'] as num).toDouble(), (json['${key}']['longitude'] as num).toDouble()) : null`;
+            }
+            return `GeoPoint((json['${key}']['latitude'] as num).toDouble(), (json['${key}']['longitude'] as num).toDouble())`;
+        case 'reference':
+            if (isOptional) {
+                return `json['${key}'] != null ? FirebaseFirestore.instance.doc(json['${key}'] as String) : null`;
+            }
+            return `FirebaseFirestore.instance.doc(json['${key}'] as String)`;
+        case 'array': {
+            const itemType = field.arrayItemType ? firestoreToDartType(field.arrayItemType, false) : 'dynamic';
+            return `(json['${key}'] as List<dynamic>${isOptional ? '?' : ''})${isOptional ? '?' : ''}.cast<${itemType}>()`;
+        }
+        case 'map': {
+            const valueType = field.mapValueType ? firestoreToDartType(field.mapValueType, false) : 'dynamic';
+            return `(json['${key}'] as Map<String, dynamic>${isOptional ? '?' : ''})${isOptional ? '?' : ''}.cast<String, ${valueType}>()`;
+        }
+        default:
+            return `json['${key}']`;
+    }
+}
+
+function generateToJson(clientFields: FirestoreField[]): string {
+    const entries = clientFields.map(field => {
+        const fieldName = toCamelCase(field.name);
+        const mapKey = field.name;
+        const valueExpr = generateJsonSerializeExpr(field, fieldName);
+        if (!field.isRequired) {
+            return `      if (${fieldName} != null) '${mapKey}': ${valueExpr}`;
+        }
+        return `      '${mapKey}': ${valueExpr}`;
+    }).join(',\n');
+
+    return `/// Convert to JSON map (internal)
+  Map<String, dynamic> _toJson() {
+    return {
+${entries},
+    };
+  }`;
+}
+
+function generateJsonSerializeExpr(field: FirestoreField, varName: string): string {
+    switch (field.type) {
+        case 'timestamp':
+            return field.isRequired
+                ? `${varName}.toIso8601String()`
+                : `${varName}?.toIso8601String()`;
+        case 'geopoint':
+            return field.isRequired
+                ? `{'latitude': ${varName}.latitude, 'longitude': ${varName}.longitude}`
+                : `${varName} != null ? {'latitude': ${varName}!.latitude, 'longitude': ${varName}!.longitude} : null`;
+        case 'reference':
+            return field.isRequired
+                ? `${varName}.path`
+                : `${varName}?.path`;
+        default:
+            return varName;
+    }
+}
+
+function generateServerMethods(
+    className: string,
+    serverRoute: string,
+    hasServerRead: boolean,
+    hasServerWrite: boolean,
+): string {
+    const lines: string[] = [];
+
+    if (hasServerRead) {
+        lines.push(`  /// Fetch a ${className} by ID from the server transform endpoint (internal).`);
+        lines.push(`  static Future<${className}> _fromServer(String docId) async {`);
+        lines.push(`    final uri = Uri.parse('\${DartStoreClient.baseUrl}${serverRoute}/\$docId');`);
+        lines.push(`    final response = await http.get(uri, headers: DartStoreClient.headers);`);
+        lines.push(`    if (response.statusCode != 200) {`);
+        lines.push(`      throw DartStoreException('GET', uri, response.statusCode, response.body);`);
+        lines.push(`    }`);
+        lines.push(`    final instance = ${className}._fromJson(jsonDecode(response.body) as Map<String, dynamic>);`);
+        lines.push(`    instance._remoteId = docId;`);
+        lines.push(`    return instance;`);
+        lines.push(`  }`);
+        lines.push('');
+    }
+
+    if (hasServerWrite) {
+        lines.push(`  /// Save this ${className} to the server transform endpoint (internal).`);
+        lines.push(`  Future<Map<String, dynamic>> _saveToServer({String? docId}) async {`);
+        lines.push(`    final body = jsonEncode(_toJson());`);
+        lines.push(`    final http.Response response;`);
+        lines.push(`    if (docId != null) {`);
+        lines.push(`      final uri = Uri.parse('\${DartStoreClient.baseUrl}${serverRoute}/\$docId');`);
+        lines.push(`      response = await http.put(uri, headers: {...DartStoreClient.headers, 'Content-Type': 'application/json'}, body: body);`);
+        lines.push(`    } else {`);
+        lines.push(`      final uri = Uri.parse('\${DartStoreClient.baseUrl}${serverRoute}');`);
+        lines.push(`      response = await http.post(uri, headers: {...DartStoreClient.headers, 'Content-Type': 'application/json'}, body: body);`);
+        lines.push(`    }`);
+        lines.push(`    if (response.statusCode != 200) {`);
+        lines.push(`      throw DartStoreException(docId != null ? 'PUT' : 'POST', Uri.parse('\${DartStoreClient.baseUrl}${serverRoute}'), response.statusCode, response.body);`);
+        lines.push(`    }`);
+        lines.push(`    return jsonDecode(response.body) as Map<String, dynamic>;`);
+        lines.push(`  }`);
+        lines.push('');
+    }
+
+    return lines.length > 0 ? '\n' + lines.join('\n') + '\n' : '';
+}
+
+// ─── ORM public API generators ──────────────────────────────────────────────
+
+function generateUpdateFrom(clientFields: FirestoreField[]): string {
+    const assignments = clientFields.map(field => {
+        const fieldName = toCamelCase(field.name);
+        return `    ${fieldName} = other.${fieldName};`;
+    }).join('\n');
+
+    return `  /// Copy all field values from another instance (used by download).
+  void _updateFrom(dynamic other) {
+${assignments}
+    _remoteId = other._remoteId;
+  }`;
+}
+
+function generateUploadMethod(
+    className: string,
+    collection: FirestoreCollection,
+    collectionPath: string,
+    _hasServerRead: boolean,
+    hasServerWrite: boolean,
+    hasServerMethods: boolean,
+): string {
+    const hasClientValidation = collection.validationRules?.clientEnabled;
+    const lines: string[] = [];
+
+    lines.push(`  /// Upload this ${className} to Firestore.`);
+    lines.push(`  /// Creates a new document or updates the existing one if [remoteId] is set.`);
+    lines.push(`  /// Returns a list of validation errors, or an empty list on success.`);
+    lines.push(`  Future<List<String>> upload() async {`);
+
+    // Validation gate
+    if (hasClientValidation) {
+        lines.push(`    final errors = validate();`);
+        lines.push(`    if (errors.isNotEmpty) return errors;`);
+    }
+
+    if (hasServerWrite && hasServerMethods) {
+        // Server-mode write: delegate to _saveToServer
+        lines.push(`    final result = await _saveToServer(docId: _remoteId);`);
+        lines.push(`    _remoteId = result['id'] as String? ?? _remoteId;`);
+    } else {
+        // Direct Firestore write
+        lines.push(`    final ref = _remoteId != null`);
+        lines.push(`        ? FirebaseFirestore.instance.collection('${collectionPath}').doc(_remoteId)`);
+        lines.push(`        : FirebaseFirestore.instance.collection('${collectionPath}').doc();`);
+        lines.push(`    await ref.set(_toFirestore());`);
+        lines.push(`    _remoteId = ref.id;`);
+    }
+
+    lines.push(`    return [];`);
+    lines.push(`  }`);
+
+    return lines.join('\n');
+}
+
+function generateDownloadMethod(
+    className: string,
+    collectionPath: string,
+    hasServerRead: boolean,
+    hasServerMethods: boolean,
+): string {
+    const lines: string[] = [];
+
+    lines.push(`  /// Download the paired Firestore document and update local data.`);
+    lines.push(`  /// Requires [remoteId] to be set (via a prior upload or manual assignment).`);
+    lines.push(`  Future<void> download() async {`);
+    lines.push(`    assert(_remoteId != null, 'Cannot download without a remoteId');`);
+
+    if (hasServerRead && hasServerMethods) {
+        // Server-mode read: delegate to _fromServer
+        lines.push(`    final fresh = await ${className}._fromServer(_remoteId!);`);
+    } else {
+        // Direct Firestore read
+        lines.push(`    final snapshot = await FirebaseFirestore.instance`);
+        lines.push(`        .collection('${collectionPath}')`);
+        lines.push(`        .doc(_remoteId)`);
+        lines.push(`        .get();`);
+        lines.push(`    final fresh = ${className}._fromFirestore(snapshot, null);`);
+    }
+
+    lines.push(`    _updateFrom(fresh);`);
+    lines.push(`  }`);
+
+    return lines.join('\n');
+}
+
+function generateDeleteRemoteMethod(
+    collectionPath: string,
+): string {
+    const lines: string[] = [];
+
+    lines.push(`  /// Delete the paired Firestore document.`);
+    lines.push(`  /// Requires [remoteId] to be set.`);
+    lines.push(`  Future<void> deleteRemote() async {`);
+    lines.push(`    assert(_remoteId != null, 'Cannot delete without a remoteId');`);
+    lines.push(`    await FirebaseFirestore.instance`);
+    lines.push(`        .collection('${collectionPath}')`);
+    lines.push(`        .doc(_remoteId)`);
+    lines.push(`        .delete();`);
+    lines.push(`    _remoteId = null;`);
+    lines.push(`  }`);
+
+    return lines.join('\n');
+}
+
+function generateFetchAllMethod(
+    className: string,
+    collectionPath: string,
+    hasServerRead: boolean,
+    hasServerMethods: boolean,
+): string {
+    const lines: string[] = [];
+
+    lines.push(`  /// Fetch all ${className} documents from Firestore.`);
+    lines.push(`  static Future<List<${className}>> fetchAll() async {`);
+
+    if (hasServerRead && hasServerMethods) {
+        // Server-mode: use the list endpoint
+        lines.push(`    final uri = Uri.parse('\${DartStoreClient.baseUrl}/${toCamelCase(collectionPath.split('/').pop() || collectionPath)}');`);
+        lines.push(`    final response = await http.get(uri, headers: DartStoreClient.headers);`);
+        lines.push(`    if (response.statusCode != 200) {`);
+        lines.push(`      throw DartStoreException('GET', uri, response.statusCode, response.body);`);
+        lines.push(`    }`);
+        lines.push(`    final list = jsonDecode(response.body) as List<dynamic>;`);
+        lines.push(`    return list.map((item) {`);
+        lines.push(`      final instance = ${className}._fromJson(item as Map<String, dynamic>);`);
+        lines.push(`      instance._remoteId = item['id'] as String?;`);
+        lines.push(`      return instance;`);
+        lines.push(`    }).toList();`);
+    } else {
+        // Direct Firestore query
+        lines.push(`    final snapshot = await FirebaseFirestore.instance`);
+        lines.push(`        .collection('${collectionPath}')`);
+        lines.push(`        .get();`);
+        lines.push(`    return snapshot.docs`);
+        lines.push(`        .map((doc) => ${className}._fromFirestore(doc, null))`);
+        lines.push(`        .toList();`);
+    }
+
+    lines.push(`  }`);
+
+    return lines.join('\n');
+}
+
 function flattenCollections(collections: FirestoreCollection[]): FirestoreCollection[] {
     const result: FirestoreCollection[] = [];
 
@@ -458,15 +830,94 @@ function flattenCollections(collections: FirestoreCollection[]): FirestoreCollec
     return result;
 }
 
+function buildParentMap(collections: FirestoreCollection[], parentId?: string): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const c of collections) {
+        if (parentId) map.set(c.id, parentId);
+        if (c.subcollections.length > 0) {
+            const subMap = buildParentMap(c.subcollections, c.id);
+            subMap.forEach((v, k) => map.set(k, v));
+        }
+    }
+    return map;
+}
+
+function getCollectionPath(
+    collection: FirestoreCollection,
+    allCollections: FirestoreCollection[],
+    parentMap: Map<string, string>,
+): string {
+    const parts: string[] = [];
+    let current: string | undefined = collection.id;
+    while (current) {
+        const coll = allCollections.find(c => c.id === current);
+        if (coll) parts.unshift(coll.name);
+        current = parentMap.get(current!);
+    }
+    return parts.join('/');
+}
+
+function generateDartStoreBaseClass(): string {
+    return `/// Base client configuration for DartStore server transforms.
+/// Set [baseUrl] to your Cloud Function endpoint before using server methods.
+///
+/// \`\`\`dart
+/// DartStoreClient.baseUrl = 'https://us-central1-my-project.cloudfunctions.net/dataTransformer';
+/// \`\`\`
+class DartStoreClient {
+  DartStoreClient._();
+
+  /// The base URL of the Cloud Function endpoint.
+  /// Must be set before calling any server-backed \`upload\` or \`download\` methods.
+  static String baseUrl = '';
+
+  /// Optional headers sent with every request (e.g. auth tokens).
+  static Map<String, String> headers = {};
+}
+
+/// Exception thrown when a DartStore server request fails.
+class DartStoreException implements Exception {
+  final String method;
+  final Uri uri;
+  final int statusCode;
+  final String body;
+
+  DartStoreException(this.method, this.uri, this.statusCode, this.body);
+
+  @override
+  String toString() => 'DartStoreException: \$method \$uri returned \$statusCode — \$body';
+}`;
+}
+
 export function generateFullDartFile(project: FirestoreProject, transformConfig?: ProjectTransformConfig): string {
-    const imports = `import 'package:cloud_firestore/cloud_firestore.dart';
-
-`;
-
     const allCollections = flattenCollections(project.collections);
+
+    // Detect whether any collection uses server-side transforms
+    const anyServerTransform = allCollections.some(c => {
+        const cfg = transformConfig?.collectionConfigs[c.id];
+        return cfg && (cfg.readTransformMode === 'server' || cfg.writeTransformMode === 'server');
+    });
+
+    // Build imports
+    const importLines: string[] = [
+        "import 'package:cloud_firestore/cloud_firestore.dart';",
+    ];
+    if (anyServerTransform) {
+        importLines.push("import 'dart:convert';");
+        importLines.push("import 'package:http/http.dart' as http;");
+    }
+
+    const endpointName = transformConfig?.endpointName || 'dataTransformer';
+
+    // Build parent map for computing collection paths
+    const parentMap = buildParentMap(project.collections);
+
     const classes = allCollections.map(collection => {
         const collConfig = transformConfig?.collectionConfigs[collection.id];
-        return generateDartClass(collection, collConfig);
+        const hasServer = collConfig && (collConfig.readTransformMode === 'server' || collConfig.writeTransformMode === 'server');
+        const serverRoute = hasServer ? `/${toCamelCase(collection.name)}` : undefined;
+        const collectionPath = getCollectionPath(collection, allCollections, parentMap);
+        return generateDartClass(collection, collConfig, serverRoute, endpointName, collectionPath);
     }).join('\n\n');
 
     const header = `// Generated by DartStore Firestore Modeler
@@ -476,7 +927,10 @@ ${project.description ? `// Description: ${project.description}` : ''}
 
 `;
 
-    return header + imports + classes;
+    const imports = importLines.join('\n') + '\n\n';
+    const baseClass = anyServerTransform ? generateDartStoreBaseClass() + '\n\n' : '';
+
+    return header + imports + baseClass + classes;
 }
 
 // Helper functions

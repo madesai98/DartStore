@@ -160,11 +160,14 @@ export interface TransformEdgeData {
 
 // ─── Collection Transformer Config ──────────────────────────────────────────────
 
+/** Where transforms execute for a given direction */
+export type TransformMode = 'none' | 'client' | 'server';
+
 export interface CollectionTransformConfig {
-    /** Enable server-side (Cloud Function) transformations */
-    serverEnabled: boolean;
-    /** Enable client-side (Dart) transformations */
-    clientEnabled: boolean;
+    /** Where read transforms execute (Firestore → Client) */
+    readTransformMode: TransformMode;
+    /** Where write transforms execute (Client → Firestore) */
+    writeTransformMode: TransformMode;
     /** Transform nodes for read direction (Firestore → Client) */
     readNodes: TransformNodeData[];
     readEdges: TransformEdgeData[];
@@ -189,8 +192,8 @@ export function createDefaultFieldVisibility(): FieldVisibility {
 
 export function createDefaultCollectionTransformConfig(): CollectionTransformConfig {
     return {
-        serverEnabled: false,
-        clientEnabled: false,
+        readTransformMode: 'none',
+        writeTransformMode: 'none',
         readNodes: [],
         readEdges: [],
         writeNodes: [],

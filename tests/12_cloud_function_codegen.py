@@ -128,8 +128,8 @@ TRANSFORM_CONFIG = {
     "endpointName": "dataTransformer",
     "collectionConfigs": {
         "c1": {
-            "serverEnabled": True,
-            "clientEnabled": True,
+            "readTransformMode": "server",
+            "writeTransformMode": "server",
             "readNodes": READ_NODES,
             "readEdges": READ_EDGES,
             "writeNodes": WRITE_NODES,
@@ -188,8 +188,8 @@ TRANSFORM_CONFIG_2 = {
     "endpointName": "orderApi",
     "collectionConfigs": {
         "c2": {
-            "serverEnabled": True,
-            "clientEnabled": True,
+            "readTransformMode": "server",
+            "writeTransformMode": "server",
             "readNodes": READ_NODES_2,
             "readEdges": READ_EDGES_2,
             "writeNodes": [],
@@ -245,8 +245,8 @@ TRANSFORM_CONFIG_3 = {
     "endpointName": "productApi",
     "collectionConfigs": {
         "c3": {
-            "serverEnabled": True,
-            "clientEnabled": True,
+            "readTransformMode": "server",
+            "writeTransformMode": "server",
             "readNodes": READ_NODES_3,
             "readEdges": READ_EDGES_3,
             "writeNodes": [],
