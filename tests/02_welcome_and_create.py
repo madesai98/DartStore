@@ -1,4 +1,4 @@
-"""Test 02: Welcome Screen - create project, import project, join session form."""
+"""Test 02: Welcome Screen - create project and import project."""
 from playwright.sync_api import sync_playwright
 import os, json, sys
 
@@ -33,11 +33,8 @@ with sync_playwright() as p:
     import_label = page.locator('text=Import Project')
     check(import_label.count() > 0, 'Import Project element exists')
 
-    join_inputs = page.locator('input[placeholder]').all()
-    check(len(join_inputs) >= 2, f'At least 2 inputs found, got {len(join_inputs)}')
-
-    join_btn = page.locator('button:has-text("Join Session")')
-    check(join_btn.is_visible(), 'Join Session button exists')
+    welcome_inputs = page.locator('input[placeholder], textarea[placeholder]').all()
+    check(len(welcome_inputs) == 0, f'No form inputs are shown before opening new project form, got {len(welcome_inputs)}')
 
     # Test project creation flow
     print('\n=== TEST: Create New Project ===')

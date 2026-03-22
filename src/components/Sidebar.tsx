@@ -1,19 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, FolderOpen, ShieldCheck, ShieldX, PanelLeftClose, PanelLeftOpen, Workflow } from 'lucide-react';
 import type { FirestoreCollection, ProjectSecurityRules, CollectionSecurityRules, ProjectTransformConfig } from '../types';
-import type { PeerUser, SessionStatus } from '../types/collaboration';
 import { generateId } from '../utils/storage';
-import CollaborationPanel from './CollaborationPanel';
-
-interface CollaborationProps {
-    status: SessionStatus;
-    sessionId: string | null;
-    localUser: PeerUser | null;
-    peers: PeerUser[];
-    onHost: (username: string) => void;
-    onDisconnect: () => void;
-    onJumpToUser?: (user: PeerUser) => void;
-}
 
 type SidebarMode = 'default' | 'security-rules' | 'data-transformer';
 
@@ -24,7 +12,6 @@ interface SidebarProps {
     onAddCollection?: (collection: FirestoreCollection) => void;
     onAddSubcollection?: (parentId: string, collection: FirestoreCollection) => void;
     onDeleteCollection?: (id: string) => void;
-    collaboration?: CollaborationProps;
     readOnly?: boolean;
     title?: string;
     mode?: SidebarMode;
@@ -41,7 +28,6 @@ export default function Sidebar({
     onAddCollection,
     onAddSubcollection,
     onDeleteCollection,
-    collaboration,
     readOnly = false,
     title = 'Collections',
     mode = 'default',
@@ -361,19 +347,6 @@ export default function Sidebar({
                             </div>
                         )}
                     </div>
-
-                    {/* Collaboration panel pinned to bottom */}
-                    {collaboration && (
-                        <CollaborationPanel
-                            status={collaboration.status}
-                            sessionId={collaboration.sessionId}
-                            localUser={collaboration.localUser}
-                            peers={collaboration.peers}
-                            onHost={collaboration.onHost}
-                            onDisconnect={collaboration.onDisconnect}
-                            onJumpToUser={collaboration.onJumpToUser}
-                        />
-                    )}
                 </>
             )}
         </nav>

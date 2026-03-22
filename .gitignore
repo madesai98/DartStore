@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.gitnexus
+.claude
+.vscode
+AGENTS.md
+CLAUDE.md
+tests/
+tests/*

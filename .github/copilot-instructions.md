@@ -5,6 +5,8 @@
 ## Project Overview
 DartStore is a modern, high-performance web application for modeling Firestore databases and generating type-safe Dart code for Flutter applications in real-time.
 
+This app is single-user and local-only. Do not add live collaboration, remote cursors, or session join/host flows.
+
 ## Tech Stack
 - React 18 with TypeScript for type-safe components
 - Vite 7 for fast builds and HMR
@@ -87,6 +89,7 @@ Supported Firestore types:
 3. **Real-time Rendering** - Dart code updates as you edit
 4. **Responsive Design** - Works on all screen sizes
 5. **Type Safety** - All Firestore types properly mapped to Dart
+6. **Single-user Local UX** - Welcome screen supports only create/import for local workflows
 
 ## Common Tasks
 

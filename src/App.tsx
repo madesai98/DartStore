@@ -6,10 +6,6 @@ import { getDefaultOperatorForType } from './utils/validationOperators';
 import { generateFullDartFile } from './utils/dartGenerator';
 import { generateSecurityRules, createDefaultProjectSecurityRules } from './utils/securityRulesGenerator';
 import { generateCloudFunction } from './utils/cloudFunctionGenerator';
-import { useCollaboration } from './hooks/useCollaboration';
-import { useFocusTracking } from './hooks/useFocusTracking';
-import { buildElementPath, findMeaningfulElement, resolveElementPath } from './utils/elementPath';
-import type { SyncedAppState, PeerUser } from './types/collaboration';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import CollectionEditor from './components/CollectionEditor';
@@ -18,7 +14,6 @@ import SecurityRulesBuilder from './components/SecurityRulesBuilder';
 import SecurityRulesPreview from './components/SecurityRulesPreview';
 import WelcomeScreen from './components/WelcomeScreen';
 import OverviewGraph from './components/OverviewGraph';
-import RemoteCursors from './components/RemoteCursors';
 import DataTransformerEditor from './components/DataTransformerEditor';
 
 type AppView = 'editor' | 'security-rules' | 'overview' | 'data-transformer';
@@ -89,7 +84,6 @@ function App() {
   const [showSecurityRulesPreview, setShowSecurityRulesPreview] = useState(false);
   const [activeView, setActiveView] = useState<AppView>('editor');
   const [securityRules, setSecurityRules] = useState<ProjectSecurityRules>(createDefaultProjectSecurityRules());
-  const [isGuest, setIsGuest] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [transformConfig, setTransformConfig] = useState<ProjectTransformConfig>(createDefaultProjectTransformConfig());
@@ -109,42 +103,6 @@ function App() {
     setSelectedCollectionId(id);
     if (isMobile) setMobileSidebarOpen(false);
   }, [isMobile]);
-
-  // ─── Collaboration ──────────────────────────────────────────────────────────
-  const handleRemoteStateSync = useCallback((state: SyncedAppState) => {
-    setProject(state.project);
-    setSecurityRules(state.securityRules);
-  }, []);
-
-  const collab = useCollaboration({
-    project,
-    securityRules,
-    selectedCollectionId,
-    activeView,
-    onRemoteStateSync: handleRemoteStateSync,
-  });
-
-  const isCollabActive = collab.status === 'hosting' || collab.status === 'connected';
-
-  // Track mouse movement for collaboration cursors
-  useEffect(() => {
-    if (!isCollabActive) return;
-    const handleMouseMove = (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      // Skip cursor overlay elements
-      if (target.closest('[data-collab-cursors]')) return;
-      const el = findMeaningfulElement(target);
-      const path = buildElementPath(el);
-      collab.updateCursor({ elementPath: path });
-    };
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCollabActive]);
-
-  // Track focused inputs for collaboration — also moves cursor to focused element
-  useFocusTracking(isCollabActive, collab.updateFocus, collab.updateCursor);
 
   // Load project on mount
   useEffect(() => {
@@ -203,28 +161,28 @@ function App() {
     }
   }, []);
 
-  // Auto-save when project changes (skip for guests)
+  // Auto-save when project changes
   useEffect(() => {
-    if (project && !isGuest) {
+    if (project) {
       autoSaveProject(project);
     }
-  }, [project, isGuest]);
+  }, [project]);
 
-  // Auto-save security rules (skip for guests, skip before project loads)
+  // Auto-save security rules (skip before project loads)
   useEffect(() => {
-    if (!project || isGuest) return;
+    if (!project) return;
     try {
       localStorage.setItem('dartstore_security_rules', JSON.stringify(securityRules));
     } catch { /* ignore */ }
-  }, [project, securityRules, isGuest]);
+  }, [project, securityRules]);
 
-  // Auto-save transform config (skip for guests, skip before project loads)
+  // Auto-save transform config (skip before project loads)
   useEffect(() => {
-    if (!project || isGuest) return;
+    if (!project) return;
     try {
       localStorage.setItem('dartstore_transform_config', JSON.stringify(transformConfig));
     } catch { /* ignore */ }
-  }, [project, transformConfig, isGuest]);
+  }, [project, transformConfig]);
 
   // Generate Dart code
   const dartCode = useMemo(() => {
@@ -253,47 +211,7 @@ function App() {
     const newProject = createNewProject(name, description);
     setProject(newProject);
     saveProject(newProject);
-    setIsGuest(false);
   };
-
-  const handleJoinSession = useCallback((sessionId: string, username: string) => {
-    setIsGuest(true);
-    collab.joinSession(sessionId, username);
-  }, [collab]);
-
-  const handleGuestDisconnect = useCallback(() => {
-    collab.disconnect();
-    if (isGuest) {
-      setProject(null);
-      setIsGuest(false);
-      setSecurityRules(createDefaultProjectSecurityRules());
-      setActiveView('editor');
-    }
-  }, [collab, isGuest]);
-
-  // Jump to a remote peer's location: switch tab, select collection, scroll to element
-  const handleJumpToUser = useCallback((user: PeerUser) => {
-    // 1. Switch to their active tab
-    if (user.activeView !== activeView) {
-      setActiveView(user.activeView);
-    }
-
-    // 2. Switch to their selected collection
-    if (user.selectedCollectionId) {
-      setSelectedCollectionId(user.selectedCollectionId);
-    }
-
-    // 3. After a brief delay (to let React re-render the tab/collection), scroll to their element
-    setTimeout(() => {
-      const path = user.cursor.elementPath;
-      if (path) {
-        const el = resolveElementPath(path);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
-    }, 150);
-  }, [activeView]);
 
   const handleUpdateProject = (updates: Partial<FirestoreProject>) => {
     if (!project) return;
@@ -444,8 +362,6 @@ function App() {
       <WelcomeScreen
         onCreateProject={handleCreateProject}
         onLoadProject={setProject}
-        onJoinSession={handleJoinSession}
-        isJoining={collab.status === 'connecting'}
       />
     );
   }
@@ -457,15 +373,10 @@ function App() {
         onUpdateProject={handleUpdateProject}
         onShowCode={() => setShowCodePreview(true)}
         onNewProject={() => {
-          if (isGuest) {
-            handleGuestDisconnect();
-          } else {
-            collab.disconnect();
-            setProject(null);
-            setSecurityRules(createDefaultProjectSecurityRules());
-            setTransformConfig(createDefaultProjectTransformConfig());
-            setActiveView('editor');
-          }
+          setProject(null);
+          setSecurityRules(createDefaultProjectSecurityRules());
+          setTransformConfig(createDefaultProjectTransformConfig());
+          setActiveView('editor');
         }}
         activeView={activeView}
         onChangeView={setActiveView}
@@ -506,15 +417,6 @@ function App() {
               onDeleteCollection={handleDeleteCollection}
               collapsed={isMobile ? false : sidebarCollapsed}
               onToggleCollapse={() => isMobile ? setMobileSidebarOpen(false) : setSidebarCollapsed(c => !c)}
-              collaboration={{
-                status: collab.status,
-                sessionId: collab.sessionId,
-                localUser: collab.localUser,
-                peers: collab.peers,
-                onHost: collab.hostSession,
-                onDisconnect: handleGuestDisconnect,
-                onJumpToUser: handleJumpToUser,
-              }}
             />
           ) : activeView === 'security-rules' ? (
             <Sidebar
@@ -527,15 +429,6 @@ function App() {
               securityRules={securityRules}
               collapsed={isMobile ? false : sidebarCollapsed}
               onToggleCollapse={() => isMobile ? setMobileSidebarOpen(false) : setSidebarCollapsed(c => !c)}
-              collaboration={{
-                status: collab.status,
-                sessionId: collab.sessionId,
-                localUser: collab.localUser,
-                peers: collab.peers,
-                onHost: collab.hostSession,
-                onDisconnect: handleGuestDisconnect,
-                onJumpToUser: handleJumpToUser,
-              }}
             />
           ) : activeView === 'data-transformer' ? (
             <Sidebar
@@ -548,15 +441,6 @@ function App() {
               transformConfig={transformConfig}
               collapsed={isMobile ? false : sidebarCollapsed}
               onToggleCollapse={() => isMobile ? setMobileSidebarOpen(false) : setSidebarCollapsed(c => !c)}
-              collaboration={{
-                status: collab.status,
-                sessionId: collab.sessionId,
-                localUser: collab.localUser,
-                peers: collab.peers,
-                onHost: collab.hostSession,
-                onDisconnect: handleGuestDisconnect,
-                onJumpToUser: handleJumpToUser,
-              }}
             />
           ) : (
             <Sidebar
@@ -567,15 +451,6 @@ function App() {
               title="Overview"
               collapsed={isMobile ? false : sidebarCollapsed}
               onToggleCollapse={() => isMobile ? setMobileSidebarOpen(false) : setSidebarCollapsed(c => !c)}
-              collaboration={{
-                status: collab.status,
-                sessionId: collab.sessionId,
-                localUser: collab.localUser,
-                peers: collab.peers,
-                onHost: collab.hostSession,
-                onDisconnect: handleGuestDisconnect,
-                onJumpToUser: handleJumpToUser,
-              }}
             />
           )}
         </div>
@@ -658,14 +533,6 @@ function App() {
           />
         )}
       </div>
-
-      {/* Remote collaboration cursors */}
-      {isCollabActive && (
-        <RemoteCursors
-          peers={collab.peers}
-          localUserId={collab.localUser?.id ?? null}
-        />
-      )}
     </div>
   );
 }
